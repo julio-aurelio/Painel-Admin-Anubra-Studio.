@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Painel Admin — Anubra Studio</title>
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="assets/logo.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { darkMode: 'class', theme: { extend: {
+      colors: { royal: '#10288C', navy: '#1C285A', periwinkle: '#7C93F1', mist: '#B5C4FF', ice: '#E3E9FF' },
+      fontFamily: { sans: ['Inter', 'sans-serif'], display: ['Syne', 'sans-serif'] }
+    } } };
+  </script>
+  <style>
+    .campo { width: 100%; border-radius: .75rem; padding: .7rem 1rem; background: rgb(0 0 0 / .35); border: 1px solid rgb(181 196 255 / .15); color: #E3E9FF; transition: border-color .2s, box-shadow .2s; }
+    .campo:focus { outline: none; border-color: #7C93F1; box-shadow: 0 0 0 4px rgb(124 147 241 / .2); }
+    .card { background: rgb(28 40 90 / .25); border: 1px solid rgb(181 196 255 / .1); border-radius: 1.25rem; }
+    .nav-item[aria-current="true"] { background: rgb(124 147 241 / .15); color: #fff; }
+    .nav-item[aria-current="true"] svg { color: #7C93F1; }
+    .site-btn[aria-pressed="true"] { background: #10288C; color: #fff; border-color: #10288C; }
+    dialog::backdrop { background: rgb(0 0 0 / .7); backdrop-filter: blur(4px); }
+    input[type=color] { -webkit-appearance: none; border: none; padding: 0; cursor: pointer; }
+    input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+    input[type=color]::-webkit-color-swatch { border: none; border-radius: .75rem; }
+  </style>
+</head>
+<body class="bg-black text-ice font-sans min-h-screen">
+
+  <!-- ================= LOGIN ================= -->
+  <section id="tela-login" class="min-h-screen grid place-items-center p-5 relative overflow-hidden">
+    <div class="absolute -top-40 -right-40 w-[500px] h-[500px] rounded-full bg-royal blur-[140px] opacity-50"></div>
+    <div class="absolute -bottom-40 -left-40 w-[400px] h-[400px] rounded-full bg-periwinkle blur-[140px] opacity-20"></div>
+    <form id="form-login" class="relative w-full max-w-sm card p-8 backdrop-blur-xl">
+      <img src="assets/logo.png" alt="Logo" class="h-14 w-14 rounded-2xl bg-white p-1.5 mx-auto" />
+      <h1 class="font-display font-bold text-2xl text-center mt-5">Painel Admin</h1>
+      <p class="text-sm text-center text-mist/60 mt-1">Entre para editar os sites</p>
+      <label class="block text-sm font-medium mt-8">Usuário
+        <input name="usuario" required autocomplete="username" class="campo mt-2" placeholder="admin" />
+      </label>
+      <label class="block text-sm font-medium mt-4">Senha
+        <input name="senha" type="password" required autocomplete="current-password" class="campo mt-2" placeholder="••••••••" />
+      </label>
+      <button class="w-full mt-6 py-3 rounded-full bg-royal hover:bg-periwinkle font-semibold transition flex items-center justify-center gap-2">
+        <i data-lucide="log-in" class="w-4 h-4"></i> Entrar
+      </button>
+      <p id="erro-login" class="text-sm text-center text-red-400 mt-4 min-h-[1.25rem]" aria-live="polite"></p>
+    </form>
+  </section>
+
+  <!-- ================= PAINEL ================= -->
+  <div id="tela-painel" class="hidden min-h-screen lg:flex">
+    <!-- Barra lateral -->
+    <aside id="sidebar" class="fixed lg:sticky top-0 z-40 h-screen w-72 shrink-0 -translate-x-full lg:translate-x-0 transition-transform bg-[#070b22] lg:bg-navy/40 backdrop-blur-xl border-r border-mist/10 flex flex-col p-5">
+      <div class="flex items-center gap-3">
+        <img src="assets/logo.png" alt="Logo" class="h-10 w-10 rounded-xl bg-white p-1" />
+        <div><p class="font-display font-bold leading-tight">Painel Admin</p><p class="text-xs text-mist/50">Anubra Studio</p></div>
+      </div>
+
+      <p class="text-[11px] uppercase tracking-widest text-mist/40 mt-8 mb-2">Site que você está editando</p>
+      <div class="grid grid-cols-2 gap-2">
+        <button class="site-btn text-sm font-semibold py-2.5 rounded-xl border border-mist/15 transition" data-site-btn="landing">Landing Page</button>
+        <button class="site-btn text-sm font-semibold py-2.5 rounded-xl border border-mist/15 transition" data-site-btn="agencia">Agência</button>
+      </div>
+
+      <nav id="menu" class="mt-6 space-y-1 flex-1 overflow-y-auto"></nav>
+
+      <a id="ver-site" target="_blank" class="flex items-center gap-2 text-sm px-3 py-2.5 rounded-xl hover:bg-white/5 transition"><i data-lucide="external-link" class="w-4 h-4"></i> Ver site</a>
+      <button id="sair" class="flex items-center gap-2 text-sm px-3 py-2.5 rounded-xl hover:bg-white/5 text-red-300 transition"><i data-lucide="log-out" class="w-4 h-4"></i> Sair</button>
+    </aside>
+
+    <!-- Conteúdo -->
+    <main class="flex-1 min-w-0">
+      <header class="sticky top-0 z-30 bg-black/70 backdrop-blur-xl border-b border-mist/10">
+        <div class="max-w-5xl mx-auto px-5 py-4 flex items-center gap-4">
+          <button id="abrir-menu" class="lg:hidden h-10 w-10 grid place-items-center rounded-xl card" aria-label="Menu"><i data-lucide="menu" class="w-5 h-5"></i></button>
+          <div class="flex-1 min-w-0">
+            <p id="subtitulo" class="text-xs uppercase tracking-widest text-periwinkle"></p>
+            <h2 id="titulo" class="font-display font-bold text-xl truncate"></h2>
+          </div>
+          <button id="salvar" class="hidden px-5 py-2.5 rounded-full bg-royal hover:bg-periwinkle font-semibold text-sm transition items-center gap-2"><i data-lucide="save" class="w-4 h-4"></i> Salvar</button>
+        </div>
+      </header>
+      <div id="conteudo" class="max-w-5xl mx-auto px-5 py-8"></div>
+    </main>
+  </div>
+
+  <!-- Modal de item -->
+  <dialog id="modal" class="card bg-[#0b1030] text-ice w-[min(560px,92vw)] p-0">
+    <form id="form-item" method="dialog" class="p-6 sm:p-8">
+      <div class="flex items-center justify-between">
+        <h3 id="modal-titulo" class="font-display font-bold text-xl"></h3>
+        <button type="button" data-fechar class="h-9 w-9 grid place-items-center rounded-full hover:bg-white/10" aria-label="Fechar"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <div id="modal-campos" class="space-y-4 mt-6"></div>
+      <div class="flex justify-end gap-3 mt-8">
+        <button type="button" data-fechar class="px-5 py-2.5 rounded-full border border-mist/20 hover:bg-white/5 text-sm font-semibold">Cancelar</button>
+        <button class="px-5 py-2.5 rounded-full bg-royal hover:bg-periwinkle text-sm font-semibold">Salvar item</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Avisos -->
+  <div id="toasts" class="fixed bottom-5 right-5 z-50 space-y-2"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.453.0/dist/umd/lucide.min.js"></script>
+  <script src="assets/admin.js"></script>
+</body>
+</html>
