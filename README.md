@@ -103,7 +103,6 @@ admin/
 ├── schema.sql          # Cria o banco no Supabase
 ├── test_api.py         # Teste da API
 ├── requirements.txt
-├── vercel.json
 ├── .env.example
 └── README.md
 ```
