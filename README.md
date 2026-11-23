@@ -29,9 +29,20 @@ No topo do menu escolha o site — **Landing Page**, **Agência** ou **Foto Livr
 - ✏️ **Textos e contatos** — títulos, textos, imagens, números, WhatsApp, Instagram, e-mail
 - 🧩 **Listas** — Landing: *Produtos/Ensaios* · Agência: *Serviços, Equipe, Portfólio, Depoimentos*
 - 📥 **Mensagens recebidas** — o que chegou pelos formulários de contato
-- 📖 **Foto Livro** — cores e fontes, capa, dedicatória, contracapa e páginas (adicionar, excluir, reordenar, trocar modelo, fotos, textos e cor de fundo)
+- 📖 **Foto Livro** — cores e fontes, capa, dedicatória, contracapa e o **Editor de páginas**
 
-O foto livro fica salvo em `site_config`, na linha `landing`, dentro da chave `fotolivro`. Salvar a landing não apaga o livro. Enquanto nada foi salvo, o painel abre o álbum inicial de `fotolivro/padrao.js`, publicado pela landing.
+### Editor de páginas
+
+Editor visual em tela cheia, para computador:
+
+- **Fotos:** enviar ou arrastar do computador, mover, redimensionar, girar, zoom, enquadramento e cantos arredondados
+- **Textos:** escrever direto na página, com 12 fontes, tamanho, cor, negrito, itálico, alinhamento e sombra
+- **Formas e camadas:** retângulo, círculo, linha, transparência e ordem dos elementos
+- **Páginas:** criar, duplicar, reordenar, excluir, cor de fundo e 8 modelos prontos
+- **Página dupla:** um elemento pode atravessar a dobra do livro
+- **Atalhos:** `Ctrl+Z`, `Ctrl+Y`, `Ctrl+D`, `Delete`, setas e `Alt` para arrastar sem o ímã de alinhamento
+
+O editor salva sozinho em `fotolivro_rascunho`. O site só muda ao clicar em **Publicar**, que copia o rascunho para `fotolivro`. Salvar a landing não apaga o livro. O formato das páginas (`fotolivro/render.js`) e o álbum inicial (`fotolivro/padrao.js`) vêm da landing publicada, então **publique a landing antes do painel**.
 
 As imagens enviadas vão para o **Supabase Storage** (bucket `imagens`, até 4 MB por arquivo).
 
@@ -76,7 +87,8 @@ Todas as rotas (menos `/api/login`) exigem login. `<site>` é `landing` ou `agen
 |---|---|
 | `POST` | `/api/login` |
 | `GET` `PUT` | `/api/config/<site>` |
-| `GET` `PUT` | `/api/fotolivro` |
+| `GET` `PUT` | `/api/fotolivro` (rascunho) |
+| `POST` | `/api/fotolivro/publicar` |
 | `GET` `POST` | `/api/itens/<site>` |
 | `PUT` `DELETE` | `/api/itens/<site>/<id>` |
 | `POST` | `/api/upload` |
@@ -102,7 +114,7 @@ Todas com **RLS ligado** e sem acesso público.
 ```
 admin/
 ├── index.html          # Login + painel
-├── assets/             # admin.js e logo
+├── assets/             # admin.js, editor.js (editor de páginas) e logo
 ├── api/index.py        # API em Python (Flask) → função serverless na Vercel
 ├── schema.sql          # Cria o banco no Supabase
 ├── test_api.py         # Teste da API

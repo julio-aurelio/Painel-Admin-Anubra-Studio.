@@ -66,14 +66,7 @@ const LIVRO_PADRAO = window.LIVRO_PADRAO_SITE || {  // o álbum completo vem da 
   ],
 };
 const NOMES_CORES_LIVRO = { fundo: 'Fundo da tela', capa: 'Capa e contracapa', capa_texto: 'Texto da capa', pagina: 'Papel das páginas', texto: 'Texto das páginas', destaque: 'Destaque e botões' };
-const FONTES_LIVRO = ['Syne', 'Inter', 'Playfair Display', 'Cormorant Garamond', 'Montserrat', 'Dancing Script'];
-const LAYOUTS_LIVRO = { foto: 'Foto inteira', foto_texto: 'Foto com texto', duas_fotos: 'Duas fotos', texto: 'Só texto' };
-const CAMPOS_LAYOUT = {
-  foto: [['foto', 'Foto', 'imagem'], ['legenda', 'Legenda']],
-  foto_texto: [['titulo', 'Título'], ['legenda', 'Legenda'], ['texto', 'Texto', 'area'], ['foto', 'Foto', 'imagem']],
-  duas_fotos: [['titulo', 'Título'], ['legenda', 'Legenda'], ['foto', 'Foto 1', 'imagem'], ['foto2', 'Foto 2', 'imagem']],
-  texto: [['titulo', 'Título'], ['texto', 'Texto', 'area']],
-};
+const FONTES_LIVRO = window.LivroRender?.FONTES || ['Syne', 'Inter', 'Playfair Display', 'Cormorant Garamond', 'Montserrat', 'Dancing Script'];
 
 // Campos de cada tipo de item
 const CAMPOS_ITEM = {
@@ -120,6 +113,29 @@ function aviso(msg, tipo = 'ok') {
   setTimeout(() => { t.style.opacity = 0; setTimeout(() => t.remove(), 300); }, 3200);
 }
 
+// Toast com botões no lugar do confirm() do navegador
+let fecharConfirmacao = null;
+function confirmar(msg, textoBotao = 'Excluir', perigo = true) {
+  fecharConfirmacao?.(false);
+  return new Promise(resolve => {
+    const fechar = v => {
+      fecharConfirmacao = null;
+      t.style.opacity = 0;
+      setTimeout(() => t.remove(), 200);
+      resolve(v);
+    };
+    const cancelar = h('button', { class: 'px-4 py-2 rounded-full border border-white/25 hover:bg-white/10 text-xs font-semibold', onclick: () => fechar(false) }, 'Cancelar');
+    const t = h('div', { role: 'alertdialog', 'aria-label': msg, class: 'w-80 max-w-[calc(100vw-2.5rem)] bg-[#141b45] border border-mist/20 text-white text-sm p-4 rounded-2xl shadow-2xl transition-all',
+      onkeydown: e => { e.stopPropagation(); if (e.key === 'Escape') fechar(false); } },
+      h('p', { class: 'flex items-start gap-2' }, icone('circle-alert', `w-5 h-5 shrink-0 ${perigo ? 'text-red-300' : 'text-periwinkle'}`), msg),
+      h('div', { class: 'flex justify-end gap-2 mt-4' }, cancelar,
+        h('button', { class: `px-4 py-2 rounded-full text-white text-xs font-semibold ${perigo ? 'bg-red-500 hover:bg-red-400' : 'bg-royal hover:bg-periwinkle'}`, onclick: () => fechar(true) }, textoBotao)));
+    fecharConfirmacao = fechar;
+    $('#toasts').append(t); desenharIcones();
+    cancelar.focus();
+  });
+}
+
 async function api(caminho, opcoes = {}) {
   const headers = { Authorization: `Bearer ${sessionStorage.getItem('token')}` };
   if (opcoes.body && !(opcoes.body instanceof FormData)) { headers['Content-Type'] = 'application/json'; opcoes.body = JSON.stringify(opcoes.body); }
@@ -159,8 +175,8 @@ function abrirPainel() {
   trocarSite(site);
 }
 
-document.querySelectorAll('[data-site-btn]').forEach(b => b.addEventListener('click', () => {
-  if (alterado && !confirm('Você tem alterações não salvas. Trocar de site mesmo assim?')) return;
+document.querySelectorAll('[data-site-btn]').forEach(b => b.addEventListener('click', async () => {
+  if (alterado && !await confirmar('Você tem alterações não salvas. Trocar de site mesmo assim?', 'Trocar')) return;
   trocarSite(b.dataset.siteBtn);
 }));
 
@@ -173,13 +189,16 @@ async function trocarSite(novo) {
   try { config = await api(rotaConfig()); carregou = true; }
   catch (err) { config = {}; aviso(err.message, 'erro'); }
   if (site === 'fotolivro' && !Object.keys(config).length) config = structuredClone(LIVRO_PADRAO);
+  if (site === 'fotolivro' && window.LivroRender) config.paginas = (config.paginas || []).map(LivroRender.converter);
+  $('#publicar').classList.toggle('hidden', site !== 'fotolivro');
+  $('#publicar').classList.toggle('flex', site === 'fotolivro');
   config.cores = { ...coresPadrao(), ...(config.cores || {}) };
   montarMenu();
   abrir(aba in abas() ? aba : 'aparencia');
 }
 
 function abas() {
-  if (site === 'fotolivro') return { aparencia: ['Cores e fontes', 'palette'], textos: ['Capa e textos', 'type'], paginas: ['Páginas do livro', 'book-open'] };
+  if (site === 'fotolivro') return { aparencia: ['Cores e fontes', 'palette'], textos: ['Capa e textos', 'type'], paginas: ['Editor de páginas', 'book-open'] };
   const lista = { aparencia: ['Aparência', 'palette'], textos: ['Textos e contatos', 'type'] };
   for (const [tipo, nome] of Object.entries(SITES[site].listas)) lista[`lista:${tipo}`] = [nome, 'layout-grid'];
   lista.mensagens = ['Mensagens recebidas', 'inbox'];
@@ -199,12 +218,12 @@ function abrir(id) {
   document.querySelectorAll('[data-aba]').forEach(b => b.setAttribute('aria-current', b.dataset.aba === id));
   $('#subtitulo').textContent = SITES[site].nome;
   $('#titulo').textContent = abas()[id][0];
-  const temSalvar = id === 'aparencia' || id === 'textos' || id === 'paginas';
+  const temSalvar = id === 'aparencia' || id === 'textos';
   $('#salvar').classList.toggle('hidden', !temSalvar);
   $('#salvar').classList.toggle('flex', temSalvar);
   const c = $('#conteudo'); c.replaceChildren();
   if (id === 'aparencia' && site === 'fotolivro') telaLivroAparencia(c);
-  else if (id === 'paginas') telaLivroPaginas(c);
+  else if (id === 'paginas') telaEditor(c);
   else if (id === 'aparencia') telaAparencia(c);
   else if (id === 'textos') telaTextos(c);
   else if (id === 'mensagens') telaMensagens(c);
@@ -214,6 +233,26 @@ function abrir(id) {
 
 $('#abrir-menu').addEventListener('click', () => $('#sidebar').classList.toggle('-translate-x-full'));
 window.addEventListener('beforeunload', e => { if (alterado) e.preventDefault(); });
+
+// ---------- Upload: foto de câmera é reduzida no navegador para caber no limite da API ----------
+async function comprimirImagem(f) {
+  if (!/^image\/(jpeg|png|webp)$/.test(f.type) || f.size <= 1.5 * 1024 * 1024) return f;
+  const bmp = await createImageBitmap(f);
+  const k = Math.min(1, 2400 / Math.max(bmp.width, bmp.height));
+  const tela = document.createElement('canvas');
+  tela.width = Math.round(bmp.width * k); tela.height = Math.round(bmp.height * k);
+  tela.getContext('2d').drawImage(bmp, 0, 0, tela.width, tela.height);
+  bmp.close();
+  const tipo = f.type === 'image/jpeg' ? 'image/jpeg' : 'image/webp';  // webp mantém a transparência do PNG
+  const blob = await new Promise(ok => tela.toBlob(ok, tipo, .86));
+  return blob && blob.size < f.size ? new File([blob], f.name, { type: blob.type }) : f;
+}
+
+async function enviarImagem(f) {
+  const fd = new FormData();
+  fd.append('arquivo', await comprimirImagem(f));
+  return (await api('/upload', { method: 'POST', body: fd })).url;
+}
 
 // ---------- Campos reutilizáveis ----------
 function campoImagem(valor, aoMudar) {
@@ -227,9 +266,8 @@ function campoImagem(valor, aoMudar) {
   url.addEventListener('input', () => { mostrar(url.value); aoMudar(url.value); });
   arquivo.addEventListener('change', async () => {
     const f = arquivo.files[0]; if (!f) return;
-    const fd = new FormData(); fd.append('arquivo', f);
     botao.disabled = true; rotulo.textContent = 'Enviando...';
-    try { const { url: u } = await api('/upload', { method: 'POST', body: fd }); url.value = u; mostrar(u); aoMudar(u); aviso('Imagem enviada!'); }
+    try { const u = await enviarImagem(f); url.value = u; mostrar(u); aoMudar(u); aviso('Imagem enviada!'); }
     catch (err) { aviso(err.message, 'erro'); }
     botao.disabled = false; rotulo.textContent = 'Enviar imagem'; arquivo.value = '';
   });
@@ -309,7 +347,7 @@ $('#salvar').addEventListener('click', async () => {
     config = await api(rotaConfig(), { method: 'PUT', body: config });
     config.cores = { ...coresPadrao(), ...config.cores };
     alterado = false; btn.classList.remove('animate-pulse');
-    aviso('Alterações salvas! Atualize o site para ver.');
+    aviso(site === 'fotolivro' ? 'Rascunho salvo. Clique em Publicar para ir ao site.' : 'Alterações salvas! Atualize o site para ver.');
   } catch (err) { aviso(err.message, 'erro'); }
   btn.disabled = false;
 });
@@ -332,36 +370,6 @@ function telaLivroAparencia(c) {
       h('select', { class: 'campo', onchange: e => { config[chave] = e.target.value; marcarAlterado(); } },
         FONTES_LIVRO.map(f => h('option', { value: f, selected: config[chave] === f }, f)))));
   c.append(h('div', { class: 'grid lg:grid-cols-2 gap-6' }, cores, fontes));
-}
-
-function telaLivroPaginas(c) {
-  config.paginas ||= [];
-  const mudarPaginas = fn => { fn(); marcarAlterado(); abrir('paginas'); };
-  const adicionar = () => h('button', { class: 'shrink-0 px-5 py-2.5 rounded-full bg-royal hover:bg-periwinkle font-semibold text-sm flex items-center gap-2',
-    onclick: () => mudarPaginas(() => config.paginas.push({ layout: 'foto_texto' })) }, icone('plus'), 'Adicionar página');
-  c.append(h('div', { class: 'flex items-center justify-between gap-4 mb-6' },
-    h('p', { class: 'text-sm text-mist/60' }, `${config.paginas.length} página(s). Clique em Salvar para publicar.`), adicionar()));
-  config.paginas.forEach((p, i) => {
-    const botao = (ic, rotulo, acao, desligado, extra = '') => h('button', { class: `h-9 w-9 grid place-items-center rounded-full hover:bg-white/10 disabled:opacity-30 ${extra}`, title: rotulo, 'aria-label': `${rotulo} (página ${i + 1})`, disabled: desligado, onclick: acao }, icone(ic));
-    const trocar = j => mudarPaginas(() => { [config.paginas[i], config.paginas[j]] = [config.paginas[j], config.paginas[i]]; });
-    const grade = h('div', { class: 'grid sm:grid-cols-2 gap-4 mt-5' });
-    for (const def of CAMPOS_LAYOUT[p.layout] || CAMPOS_LAYOUT.foto_texto) grade.append(campo(def, p[def[0]], v => { p[def[0]] = v; marcarAlterado(); }));
-    const fundo = h('input', { type: 'color', class: 'w-10 h-10 rounded-xl', value: p.fundo || config.cores.pagina, 'aria-label': `Cor de fundo da página ${i + 1}`,
-      oninput: e => { p.fundo = e.target.value; marcarAlterado(); } });
-    c.append(h('section', { class: 'card p-6 mb-4' },
-      h('div', { class: 'flex flex-wrap items-center gap-3' },
-        h('h3', { class: 'font-display font-bold text-lg' }, `Página ${i + 1}`),
-        h('select', { class: 'campo !w-44 text-sm', 'aria-label': `Modelo da página ${i + 1}`, onchange: e => mudarPaginas(() => { p.layout = e.target.value; }) },
-          Object.entries(LAYOUTS_LIVRO).map(([v, nome]) => h('option', { value: v, selected: p.layout === v }, nome))),
-        fundo,
-        h('button', { class: 'text-xs text-mist/60 hover:underline', onclick: () => mudarPaginas(() => { p.fundo = ''; }) }, 'Cor padrão'),
-        h('div', { class: 'flex gap-1 ml-auto' },
-          botao('arrow-up', 'Subir', () => trocar(i - 1), i === 0),
-          botao('arrow-down', 'Descer', () => trocar(i + 1), i === config.paginas.length - 1),
-          botao('trash-2', 'Excluir', () => confirm(`Excluir a página ${i + 1}?`) && mudarPaginas(() => config.paginas.splice(i, 1)), false, 'text-red-300 hover:!bg-red-500/20'))),
-      grade));
-  });
-  if (config.paginas.length) c.append(h('div', { class: 'flex justify-end' }, adicionar()));
 }
 
 // ---------- Tela: Listas (produtos, serviços, equipe...) ----------
@@ -413,7 +421,7 @@ function editarItem(tipo, item) {
 document.querySelectorAll('[data-fechar]').forEach(b => b.addEventListener('click', () => $('#modal').close()));
 
 async function apagarItem(item) {
-  if (!confirm(`Excluir "${item.titulo}"?`)) return;
+  if (!await confirmar(`Excluir "${item.titulo}"?`)) return;
   try { await api(`/itens/${site}/${item.id}`, { method: 'DELETE' }); aviso('Item excluído'); abrir(aba); }
   catch (err) { aviso(err.message, 'erro'); }
 }
@@ -444,7 +452,7 @@ async function telaMensagens(c) {
           onclick: () => acao(() => api(`/contatos/${m.id}`, { method: 'PUT', body: { lido: !m.lido } })) },
           m.lido ? 'Marcar como não lida' : 'Marcar como lida'),
         h('button', { class: 'px-4 py-1.5 rounded-full hover:bg-red-500/20 text-red-300 text-xs font-semibold',
-          onclick: () => confirm('Excluir esta mensagem?') && acao(() => api(`/contatos/${m.id}`, { method: 'DELETE' })) },
+          onclick: async () => { if (await confirmar('Excluir esta mensagem?')) acao(() => api(`/contatos/${m.id}`, { method: 'DELETE' })); } },
           'Excluir'))));
   }
   desenharIcones();

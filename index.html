@@ -7,7 +7,7 @@
   <meta name="robots" content="noindex" />
   <link rel="icon" href="assets/logo.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Bebas+Neue&family=Caveat:wght@400;700&family=Cormorant+Garamond:ital,wght@0,400;0,700;1,400&family=Dancing+Script:wght@400;700&family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Lora:ital,wght@0,400;0,700;1,400&family=Montserrat:ital,wght@0,400;0,700;1,400&family=Oswald:wght@400;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Raleway:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = { darkMode: 'class', theme: { extend: {
@@ -83,6 +83,7 @@
             <h2 id="titulo" class="font-display font-bold text-xl truncate"></h2>
           </div>
           <button id="salvar" class="hidden px-5 py-2.5 rounded-full bg-royal hover:bg-periwinkle font-semibold text-sm transition items-center gap-2"><i data-lucide="save" class="w-4 h-4"></i> Salvar</button>
+          <button id="publicar" class="hidden px-5 py-2.5 rounded-full bg-white text-navy hover:bg-mist font-semibold text-sm transition items-center gap-2"><i data-lucide="rocket" class="w-4 h-4"></i> Publicar</button>
         </div>
       </header>
       <div id="conteudo" class="max-w-5xl mx-auto px-5 py-8"></div>
@@ -105,10 +106,18 @@
   </dialog>
 
   <!-- Avisos -->
-  <div id="toasts" class="fixed bottom-5 right-5 z-50 space-y-2"></div>
+  <div id="toasts" class="fixed bottom-5 right-5 z-[70] space-y-2"></div>
+
+  <!-- Editor de páginas do foto livro (tela cheia) -->
+  <div id="editor" class="hidden fixed inset-0 z-[60] bg-[#070a18] text-ice flex-col select-none"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.453.0/dist/umd/lucide.min.js"></script>
-  <script src="https://anubra-studio.vercel.app/fotolivro/padrao.js"></script>
+  <script>
+    // O formato das páginas e o álbum inicial vêm da landing (no PC, da landing rodando na porta 5001)
+    const LANDING = ['localhost', '127.0.0.1'].includes(location.hostname) ? 'http://localhost:5001' : 'https://anubra-studio.vercel.app';
+    document.write(`<script src="${LANDING}/fotolivro/render.js"><\/script><script src="${LANDING}/fotolivro/padrao.js"><\/script>`);
+  </script>
   <script src="assets/admin.js"></script>
+  <script src="assets/editor.js"></script>
 </body>
 </html>

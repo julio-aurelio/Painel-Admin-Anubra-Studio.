@@ -10,6 +10,7 @@ Rodar no PC (sobe o painel + a API):
 import hashlib
 import hmac
 import json
+import math
 import os
 import re
 import time
@@ -151,9 +152,8 @@ def salvar_config(site):
     cores = d.get("cores") or {}
     dados["cores"] = {c: cores[c] for c in CORES if HEX.match(str(cores.get(c, "")))}
     if site == "landing":  # o foto livro mora nesta linha e tem a própria tela
-        livro = ler_dados_landing().get("fotolivro")
-        if livro:
-            dados["fotolivro"] = livro
+        atuais = ler_dados_landing()
+        dados.update({c: atuais[c] for c in CHAVES_LIVRO if atuais.get(c)})
     gravar_config(site, dados)
     return jsonify(dados)
 
@@ -169,14 +169,17 @@ def gravar_config(site, dados):
              {"Prefer": "resolution=merge-duplicates"})
 
 
-# ---------- Foto livro (fica em site_config da landing, na chave "fotolivro") ----------
+# ---------- Foto livro (em site_config da landing: "fotolivro" é o publicado, "fotolivro_rascunho" o editado) ----------
+CHAVES_LIVRO = ("fotolivro", "fotolivro_rascunho")
 TEXTOS_LIVRO = ("titulo", "subtitulo", "autor", "ano", "dedicatoria", "contracapa_titulo", "contracapa_texto",
                 "botao_texto", "dica", "titulo_aba")
 IMAGENS_LIVRO = ("capa_imagem", "contracapa_imagem")
 CORES_LIVRO = ("fundo", "capa", "capa_texto", "pagina", "texto", "destaque")
-FONTES_LIVRO = {"Syne", "Inter", "Playfair Display", "Cormorant Garamond", "Montserrat", "Dancing Script"}
-LAYOUTS_LIVRO = {"foto", "foto_texto", "duas_fotos", "texto"}
+FONTES_LIVRO = {"Syne", "Inter", "Playfair Display", "Cormorant Garamond", "Montserrat", "Dancing Script",
+                "Abril Fatface", "Bebas Neue", "Caveat", "Lora", "Oswald", "Raleway"}
+LAYOUTS_LIVRO = {"foto", "foto_texto", "duas_fotos", "texto", "livre"}
 MAX_PAGINAS = 200
+MAX_ELEMENTOS = 80
 
 
 def url_imagem(valor):
@@ -184,8 +187,52 @@ def url_imagem(valor):
     return url if re.match(r"^https?://", url, re.I) else ""
 
 
+def numero(valor, minimo, maximo, padrao=0):
+    try:
+        n = float(valor)
+    except (TypeError, ValueError):
+        return padrao
+    return round(max(minimo, min(maximo, n)), 3) if math.isfinite(n) else padrao
+
+
+def cor(valor, padrao):
+    return valor if HEX.fullmatch(str(valor or "")) else padrao
+
+
+def limpar_elemento(e):
+    tipo = e.get("tipo")
+    if tipo not in ("foto", "texto", "forma"):
+        return None
+    item = {
+        "id": re.sub(r"[^a-zA-Z0-9]", "", str(e.get("id", "")))[:24] or uuid.uuid4().hex[:12],
+        "tipo": tipo,
+        "x": numero(e.get("x"), -300, 300),
+        "y": numero(e.get("y"), -100, 200),
+        "w": numero(e.get("w"), 0.2, 400, 30),
+        "h": numero(e.get("h"), 0.1, 400, 20),
+        "r": numero(e.get("r"), -180, 180),
+        "opacidade": numero(e.get("opacidade"), 0.05, 1, 1),
+    }
+    if tipo == "foto":
+        item.update(url=url_imagem(e.get("url")), zoom=numero(e.get("zoom"), 1, 4, 1), fx=numero(e.get("fx"), 0, 100, 50),
+                    fy=numero(e.get("fy"), 0, 100, 50), raio=numero(e.get("raio"), 0, 50))
+    elif tipo == "texto":
+        item.update(texto=str(e.get("texto") or "")[:3000], fonte=e.get("fonte") if e.get("fonte") in FONTES_LIVRO else "Inter",
+                    tam=numero(e.get("tam"), 0.8, 40, 4), cor=cor(e.get("cor"), "#1C285A"), peso=700 if e.get("peso") == 700 else 400,
+                    italico=bool(e.get("italico")), alinhar=e.get("alinhar") if e.get("alinhar") in ("left", "center", "right") else "left",
+                    linha=numero(e.get("linha"), 0.8, 3, 1.3), sombra=bool(e.get("sombra")))
+    else:
+        item.update(forma="circulo" if e.get("forma") == "circulo" else "retangulo", cor=cor(e.get("cor"), "#7C93F1"),
+                    raio=numero(e.get("raio"), 0, 50))
+    return item
+
+
 def limpar_pagina(p):
     fundo = str(p.get("fundo", ""))
+    if p.get("layout") == "livre":
+        elementos = p.get("elementos") if isinstance(p.get("elementos"), list) else []
+        limpos = [limpar_elemento(e) for e in elementos[:MAX_ELEMENTOS] if isinstance(e, dict)]
+        return {"layout": "livre", "fundo": fundo if HEX.fullmatch(fundo) else "", "elementos": [e for e in limpos if e]}
     return {
         "layout": p.get("layout") if p.get("layout") in LAYOUTS_LIVRO else "foto_texto",
         "titulo": texto(p.get("titulo"), 200),
@@ -212,7 +259,8 @@ def limpar_livro(d):
 @app.get("/api/fotolivro")
 @exige_login
 def ler_fotolivro():
-    return jsonify(ler_dados_landing().get("fotolivro") or {})
+    dados = ler_dados_landing()
+    return jsonify(dados.get("fotolivro_rascunho") or dados.get("fotolivro") or {})
 
 
 @app.put("/api/fotolivro")
@@ -221,10 +269,21 @@ def salvar_fotolivro():
     d = request.get_json(silent=True)
     if not isinstance(d, dict):
         return jsonify(erro="Envie um objeto JSON"), 400
-    dados = ler_dados_landing()
-    dados["fotolivro"] = limpar_livro(d)
+    dados = ler_dados_landing()  # ponytail: última gravação vence; basta para uma pessoa editando por vez
+    dados["fotolivro_rascunho"] = limpar_livro(d)
     gravar_config("landing", dados)
-    return jsonify(dados["fotolivro"])
+    return jsonify(dados["fotolivro_rascunho"])
+
+
+@app.post("/api/fotolivro/publicar")
+@exige_login
+def publicar_fotolivro():
+    dados = ler_dados_landing()
+    if not dados.get("fotolivro_rascunho"):
+        return jsonify(erro="Não há rascunho para publicar"), 400
+    dados["fotolivro"] = dados["fotolivro_rascunho"]
+    gravar_config("landing", dados)
+    return jsonify(ok=True)
 
 
 # ---------- Itens (produtos, serviços, equipe, portfólio, depoimentos) ----------
