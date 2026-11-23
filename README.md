@@ -23,12 +23,15 @@ Padrão para a apresentação: **admin** / **admin123**.
 
 ## 🛠️ O que o painel edita
 
-No topo do menu escolha o site — **Landing Page** ou **Agência** — cada um tem a sua área:
+No topo do menu escolha o site — **Landing Page**, **Agência** ou **Foto Livro** — cada um tem a sua área:
 
 - 🎨 **Aparência** — as 5 cores da paleta (com prévia ao vivo) e o logo
 - ✏️ **Textos e contatos** — títulos, textos, imagens, números, WhatsApp, Instagram, e-mail
 - 🧩 **Listas** — Landing: *Produtos/Ensaios* · Agência: *Serviços, Equipe, Portfólio, Depoimentos*
 - 📥 **Mensagens recebidas** — o que chegou pelos formulários de contato
+- 📖 **Foto Livro** — cores e fontes, capa, dedicatória, contracapa e páginas (adicionar, excluir, reordenar, trocar modelo, fotos, textos e cor de fundo)
+
+O foto livro fica salvo em `site_config`, na linha `landing`, dentro da chave `fotolivro`. Salvar a landing não apaga o livro. Enquanto nada foi salvo, o painel abre o álbum inicial de `fotolivro/padrao.js`, publicado pela landing.
 
 As imagens enviadas vão para o **Supabase Storage** (bucket `imagens`, até 4 MB por arquivo).
 
@@ -73,6 +76,7 @@ Todas as rotas (menos `/api/login`) exigem login. `<site>` é `landing` ou `agen
 |---|---|
 | `POST` | `/api/login` |
 | `GET` `PUT` | `/api/config/<site>` |
+| `GET` `PUT` | `/api/fotolivro` |
 | `GET` `POST` | `/api/itens/<site>` |
 | `PUT` `DELETE` | `/api/itens/<site>/<id>` |
 | `POST` | `/api/upload` |
@@ -87,7 +91,7 @@ Teste rápido, sem precisar do Supabase: `python test_api.py`
 
 | Tabela | Guarda |
 |---|---|
-| `site_config` | textos, cores, contatos e imagens de cada site (JSON) |
+| `site_config` | textos, cores, contatos, imagens de cada site e o foto livro (JSON) |
 | `itens` | produtos, serviços, equipe, portfólio e depoimentos |
 | `contatos` | mensagens dos formulários |
 

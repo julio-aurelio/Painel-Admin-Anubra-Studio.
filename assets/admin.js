@@ -51,7 +51,7 @@ const SITES = {
 };
 
 // ---------- Foto livro ----------
-const LIVRO_PADRAO = {
+const LIVRO_PADRAO = window.LIVRO_PADRAO_SITE || {  // o álbum completo vem da landing; este é o reserva
   titulo: 'Anubra Studio', subtitulo: 'Cada olhar conta uma história.', autor: 'Foto Livro', ano: '2026',
   dedicatoria: 'Para quem acredita que um instante pode durar para sempre.',
   contracapa_titulo: 'Vamos criar o seu?', contracapa_texto: 'Transformamos os seus momentos em um livro para guardar.',
