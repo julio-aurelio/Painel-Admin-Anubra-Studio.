@@ -37,6 +37,42 @@ const SITES = {
     },
     listas: { servico: 'Serviços', membro: 'Equipe', portfolio: 'Portfólio', depoimento: 'Depoimentos' },
   },
+  fotolivro: {
+    nome: 'Foto Livro',
+    url: 'https://anubra-studio.vercel.app/fotolivro',
+    textos: {
+      'Capa': [['titulo', 'Título'], ['subtitulo', 'Subtítulo'], ['autor', 'Nome / autor'], ['ano', 'Ano'], ['capa_imagem', 'Foto da capa', 'imagem']],
+      'Dedicatória': [['dedicatoria', 'Texto da primeira página', 'area']],
+      'Contracapa': [['contracapa_titulo', 'Título'], ['botao_texto', 'Texto do botão'], ['contracapa_texto', 'Texto', 'area'], ['contracapa_imagem', 'Foto da contracapa', 'imagem']],
+      'Página do livro': [['titulo_aba', 'Título da aba do navegador'], ['dica', 'Dica abaixo do livro']],
+    },
+    listas: {},
+  },
+};
+
+// ---------- Foto livro ----------
+const LIVRO_PADRAO = {
+  titulo: 'Anubra Studio', subtitulo: 'Cada olhar conta uma história.', autor: 'Foto Livro', ano: '2026',
+  dedicatoria: 'Para quem acredita que um instante pode durar para sempre.',
+  contracapa_titulo: 'Vamos criar o seu?', contracapa_texto: 'Transformamos os seus momentos em um livro para guardar.',
+  botao_texto: 'Quero meu foto livro', dica: 'Clique nas páginas, use as setas do teclado ou deslize para folhear.', titulo_aba: 'Foto Livro — Anubra Studio',
+  fonte_titulo: 'Syne', fonte_texto: 'Inter',
+  cores: { fundo: '#05070F', capa: '#10288C', capa_texto: '#E3E9FF', pagina: '#FBFAF6', texto: '#1C285A', destaque: '#7C93F1' },
+  paginas: [
+    { layout: 'foto', legenda: 'Sua primeira foto aqui' },
+    { layout: 'foto_texto', titulo: 'O começo', texto: 'Conte aqui a história deste ensaio.' },
+    { layout: 'duas_fotos', legenda: 'Detalhes do dia' },
+    { layout: 'texto', titulo: 'Um momento', texto: 'Escreva uma frase, uma lembrança ou uma dedicatória.' },
+  ],
+};
+const NOMES_CORES_LIVRO = { fundo: 'Fundo da tela', capa: 'Capa e contracapa', capa_texto: 'Texto da capa', pagina: 'Papel das páginas', texto: 'Texto das páginas', destaque: 'Destaque e botões' };
+const FONTES_LIVRO = ['Syne', 'Inter', 'Playfair Display', 'Cormorant Garamond', 'Montserrat', 'Dancing Script'];
+const LAYOUTS_LIVRO = { foto: 'Foto inteira', foto_texto: 'Foto com texto', duas_fotos: 'Duas fotos', texto: 'Só texto' };
+const CAMPOS_LAYOUT = {
+  foto: [['foto', 'Foto', 'imagem'], ['legenda', 'Legenda']],
+  foto_texto: [['titulo', 'Título'], ['legenda', 'Legenda'], ['texto', 'Texto', 'area'], ['foto', 'Foto', 'imagem']],
+  duas_fotos: [['titulo', 'Título'], ['legenda', 'Legenda'], ['foto', 'Foto 1', 'imagem'], ['foto2', 'Foto 2', 'imagem']],
+  texto: [['titulo', 'Título'], ['texto', 'Texto', 'area']],
 };
 
 // Campos de cada tipo de item
@@ -56,7 +92,10 @@ let site = sessionStorage.getItem('site') || 'landing';
 let aba = 'aparencia';
 let config = {};
 let alterado = false;
+let carregou = false;  // sem isso, salvar depois de um erro apagaria o conteúdo real
 const $ = s => document.querySelector(s);
+const rotaConfig = () => site === 'fotolivro' ? '/fotolivro' : `/config/${site}`;
+const coresPadrao = () => site === 'fotolivro' ? LIVRO_PADRAO.cores : CORES_PADRAO;
 
 // ---------- Utilidades ----------
 function h(tag, attrs = {}, ...filhos) {
@@ -130,14 +169,17 @@ async function trocarSite(novo) {
   $('#salvar').classList.remove('animate-pulse');
   document.querySelectorAll('[data-site-btn]').forEach(b => b.setAttribute('aria-pressed', b.dataset.siteBtn === site));
   $('#ver-site').href = SITES[site].url;
-  try { config = await api(`/config/${site}`); }
+  carregou = false;
+  try { config = await api(rotaConfig()); carregou = true; }
   catch (err) { config = {}; aviso(err.message, 'erro'); }
-  config.cores = { ...CORES_PADRAO, ...(config.cores || {}) };
+  if (site === 'fotolivro' && !Object.keys(config).length) config = structuredClone(LIVRO_PADRAO);
+  config.cores = { ...coresPadrao(), ...(config.cores || {}) };
   montarMenu();
   abrir(aba in abas() ? aba : 'aparencia');
 }
 
 function abas() {
+  if (site === 'fotolivro') return { aparencia: ['Cores e fontes', 'palette'], textos: ['Capa e textos', 'type'], paginas: ['Páginas do livro', 'book-open'] };
   const lista = { aparencia: ['Aparência', 'palette'], textos: ['Textos e contatos', 'type'] };
   for (const [tipo, nome] of Object.entries(SITES[site].listas)) lista[`lista:${tipo}`] = [nome, 'layout-grid'];
   lista.mensagens = ['Mensagens recebidas', 'inbox'];
@@ -157,11 +199,13 @@ function abrir(id) {
   document.querySelectorAll('[data-aba]').forEach(b => b.setAttribute('aria-current', b.dataset.aba === id));
   $('#subtitulo').textContent = SITES[site].nome;
   $('#titulo').textContent = abas()[id][0];
-  const temSalvar = id === 'aparencia' || id === 'textos';
+  const temSalvar = id === 'aparencia' || id === 'textos' || id === 'paginas';
   $('#salvar').classList.toggle('hidden', !temSalvar);
   $('#salvar').classList.toggle('flex', temSalvar);
   const c = $('#conteudo'); c.replaceChildren();
-  if (id === 'aparencia') telaAparencia(c);
+  if (id === 'aparencia' && site === 'fotolivro') telaLivroAparencia(c);
+  else if (id === 'paginas') telaLivroPaginas(c);
+  else if (id === 'aparencia') telaAparencia(c);
   else if (id === 'textos') telaTextos(c);
   else if (id === 'mensagens') telaMensagens(c);
   else telaLista(c, id.split(':')[1]);
@@ -259,15 +303,66 @@ function telaTextos(c) {
 }
 
 $('#salvar').addEventListener('click', async () => {
+  if (!carregou) return aviso('O conteúdo não carregou. Recarregue a página antes de salvar.', 'erro');
   const btn = $('#salvar'); btn.disabled = true;
   try {
-    config = await api(`/config/${site}`, { method: 'PUT', body: config });
-    config.cores = { ...CORES_PADRAO, ...config.cores };
+    config = await api(rotaConfig(), { method: 'PUT', body: config });
+    config.cores = { ...coresPadrao(), ...config.cores };
     alterado = false; btn.classList.remove('animate-pulse');
     aviso('Alterações salvas! Atualize o site para ver.');
   } catch (err) { aviso(err.message, 'erro'); }
   btn.disabled = false;
 });
+
+// ---------- Telas do foto livro ----------
+function telaLivroAparencia(c) {
+  const cores = h('div', { class: 'card p-6 space-y-4' }, h('p', { class: 'text-xs uppercase tracking-widest text-mist/50' }, 'Cores do livro'));
+  for (const [chave, nome] of Object.entries(NOMES_CORES_LIVRO)) {
+    const hex = h('input', { class: 'campo text-sm font-mono uppercase !w-28', value: config.cores[chave], maxlength: 7, 'aria-label': nome });
+    const seletor = h('input', { type: 'color', class: 'w-12 h-12 rounded-xl shrink-0', value: config.cores[chave], 'aria-label': nome });
+    seletor.addEventListener('input', () => { hex.value = seletor.value.toUpperCase(); config.cores[chave] = seletor.value; marcarAlterado(); });
+    hex.addEventListener('input', () => { if (/^#[0-9a-f]{6}$/i.test(hex.value)) { seletor.value = hex.value; config.cores[chave] = hex.value; marcarAlterado(); } });
+    cores.append(h('div', { class: 'flex items-center gap-4' }, seletor, h('p', { class: 'flex-1 font-medium text-sm' }, nome), hex));
+  }
+  cores.append(h('button', { class: 'text-sm text-periwinkle hover:underline flex items-center gap-2 pt-2',
+    onclick: () => { config.cores = { ...LIVRO_PADRAO.cores }; marcarAlterado(); abrir('aparencia'); } }, icone('rotate-ccw'), 'Restaurar cores originais'));
+  const fontes = h('div', { class: 'card p-6 space-y-4 self-start' }, h('p', { class: 'text-xs uppercase tracking-widest text-mist/50' }, 'Fontes'));
+  for (const [chave, nome] of [['fonte_titulo', 'Fonte dos títulos'], ['fonte_texto', 'Fonte dos textos']])
+    fontes.append(h('label', { class: 'block text-sm font-medium' }, h('span', { class: 'block mb-2 text-mist/80' }, nome),
+      h('select', { class: 'campo', onchange: e => { config[chave] = e.target.value; marcarAlterado(); } },
+        FONTES_LIVRO.map(f => h('option', { value: f, selected: config[chave] === f }, f)))));
+  c.append(h('div', { class: 'grid lg:grid-cols-2 gap-6' }, cores, fontes));
+}
+
+function telaLivroPaginas(c) {
+  config.paginas ||= [];
+  const mudarPaginas = fn => { fn(); marcarAlterado(); abrir('paginas'); };
+  const adicionar = () => h('button', { class: 'shrink-0 px-5 py-2.5 rounded-full bg-royal hover:bg-periwinkle font-semibold text-sm flex items-center gap-2',
+    onclick: () => mudarPaginas(() => config.paginas.push({ layout: 'foto_texto' })) }, icone('plus'), 'Adicionar página');
+  c.append(h('div', { class: 'flex items-center justify-between gap-4 mb-6' },
+    h('p', { class: 'text-sm text-mist/60' }, `${config.paginas.length} página(s). Clique em Salvar para publicar.`), adicionar()));
+  config.paginas.forEach((p, i) => {
+    const botao = (ic, rotulo, acao, desligado, extra = '') => h('button', { class: `h-9 w-9 grid place-items-center rounded-full hover:bg-white/10 disabled:opacity-30 ${extra}`, title: rotulo, 'aria-label': `${rotulo} (página ${i + 1})`, disabled: desligado, onclick: acao }, icone(ic));
+    const trocar = j => mudarPaginas(() => { [config.paginas[i], config.paginas[j]] = [config.paginas[j], config.paginas[i]]; });
+    const grade = h('div', { class: 'grid sm:grid-cols-2 gap-4 mt-5' });
+    for (const def of CAMPOS_LAYOUT[p.layout] || CAMPOS_LAYOUT.foto_texto) grade.append(campo(def, p[def[0]], v => { p[def[0]] = v; marcarAlterado(); }));
+    const fundo = h('input', { type: 'color', class: 'w-10 h-10 rounded-xl', value: p.fundo || config.cores.pagina, 'aria-label': `Cor de fundo da página ${i + 1}`,
+      oninput: e => { p.fundo = e.target.value; marcarAlterado(); } });
+    c.append(h('section', { class: 'card p-6 mb-4' },
+      h('div', { class: 'flex flex-wrap items-center gap-3' },
+        h('h3', { class: 'font-display font-bold text-lg' }, `Página ${i + 1}`),
+        h('select', { class: 'campo !w-44 text-sm', 'aria-label': `Modelo da página ${i + 1}`, onchange: e => mudarPaginas(() => { p.layout = e.target.value; }) },
+          Object.entries(LAYOUTS_LIVRO).map(([v, nome]) => h('option', { value: v, selected: p.layout === v }, nome))),
+        fundo,
+        h('button', { class: 'text-xs text-mist/60 hover:underline', onclick: () => mudarPaginas(() => { p.fundo = ''; }) }, 'Cor padrão'),
+        h('div', { class: 'flex gap-1 ml-auto' },
+          botao('arrow-up', 'Subir', () => trocar(i - 1), i === 0),
+          botao('arrow-down', 'Descer', () => trocar(i + 1), i === config.paginas.length - 1),
+          botao('trash-2', 'Excluir', () => confirm(`Excluir a página ${i + 1}?`) && mudarPaginas(() => config.paginas.splice(i, 1)), false, 'text-red-300 hover:!bg-red-500/20'))),
+      grade));
+  });
+  if (config.paginas.length) c.append(h('div', { class: 'flex justify-end' }, adicionar()));
+}
 
 // ---------- Tela: Listas (produtos, serviços, equipe...) ----------
 async function telaLista(c, tipo) {

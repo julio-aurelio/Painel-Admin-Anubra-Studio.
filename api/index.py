@@ -150,10 +150,81 @@ def salvar_config(site):
     dados = {k[:60]: texto(v) for k, v in d.items() if k != "cores" and isinstance(v, (str, int, float))}
     cores = d.get("cores") or {}
     dados["cores"] = {c: cores[c] for c in CORES if HEX.match(str(cores.get(c, "")))}
+    if site == "landing":  # o foto livro mora nesta linha e tem a própria tela
+        livro = ler_dados_landing().get("fotolivro")
+        if livro:
+            dados["fotolivro"] = livro
+    gravar_config(site, dados)
+    return jsonify(dados)
+
+
+def ler_dados_landing():
+    linhas = supabase("GET", "/rest/v1/site_config?site=eq.landing&select=dados")
+    return linhas[0]["dados"] if linhas else {}
+
+
+def gravar_config(site, dados):
     agora = datetime.now(timezone.utc).isoformat()
     supabase("POST", "/rest/v1/site_config", [{"site": site, "dados": dados, "atualizado_em": agora}],
              {"Prefer": "resolution=merge-duplicates"})
-    return jsonify(dados)
+
+
+# ---------- Foto livro (fica em site_config da landing, na chave "fotolivro") ----------
+TEXTOS_LIVRO = ("titulo", "subtitulo", "autor", "ano", "dedicatoria", "contracapa_titulo", "contracapa_texto",
+                "botao_texto", "dica", "titulo_aba")
+IMAGENS_LIVRO = ("capa_imagem", "contracapa_imagem")
+CORES_LIVRO = ("fundo", "capa", "capa_texto", "pagina", "texto", "destaque")
+FONTES_LIVRO = {"Syne", "Inter", "Playfair Display", "Cormorant Garamond", "Montserrat", "Dancing Script"}
+LAYOUTS_LIVRO = {"foto", "foto_texto", "duas_fotos", "texto"}
+MAX_PAGINAS = 200
+
+
+def url_imagem(valor):
+    url = texto(valor, 1000)
+    return url if re.match(r"^https?://", url, re.I) else ""
+
+
+def limpar_pagina(p):
+    fundo = str(p.get("fundo", ""))
+    return {
+        "layout": p.get("layout") if p.get("layout") in LAYOUTS_LIVRO else "foto_texto",
+        "titulo": texto(p.get("titulo"), 200),
+        "texto": texto(p.get("texto"), 3000),
+        "legenda": texto(p.get("legenda"), 300),
+        "foto": url_imagem(p.get("foto")),
+        "foto2": url_imagem(p.get("foto2")),
+        "fundo": fundo if HEX.fullmatch(fundo) else "",
+    }
+
+
+def limpar_livro(d):
+    livro = {c: texto(d.get(c), 1000) for c in TEXTOS_LIVRO}
+    livro.update({c: url_imagem(d.get(c)) for c in IMAGENS_LIVRO})
+    cores = d.get("cores") if isinstance(d.get("cores"), dict) else {}
+    livro["cores"] = {c: cores[c] for c in CORES_LIVRO if HEX.fullmatch(str(cores.get(c, "")))}
+    for c in ("fonte_titulo", "fonte_texto"):
+        livro[c] = d.get(c) if d.get(c) in FONTES_LIVRO else "Inter"
+    paginas = d.get("paginas") if isinstance(d.get("paginas"), list) else []
+    livro["paginas"] = [limpar_pagina(p) for p in paginas[:MAX_PAGINAS] if isinstance(p, dict)]
+    return livro
+
+
+@app.get("/api/fotolivro")
+@exige_login
+def ler_fotolivro():
+    return jsonify(ler_dados_landing().get("fotolivro") or {})
+
+
+@app.put("/api/fotolivro")
+@exige_login
+def salvar_fotolivro():
+    d = request.get_json(silent=True)
+    if not isinstance(d, dict):
+        return jsonify(erro="Envie um objeto JSON"), 400
+    dados = ler_dados_landing()
+    dados["fotolivro"] = limpar_livro(d)
+    gravar_config("landing", dados)
+    return jsonify(dados["fotolivro"])
 
 
 # ---------- Itens (produtos, serviços, equipe, portfólio, depoimentos) ----------
