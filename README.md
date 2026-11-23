@@ -33,14 +33,15 @@ No topo do menu escolha o site — **Landing Page**, **Agência** ou **Foto Livr
 
 ### Editor de páginas
 
-Editor visual em tela cheia, para computador:
+Editor visual em tela cheia, para computador e celular:
 
 - **Fotos:** enviar ou arrastar do computador, mover, redimensionar, girar, zoom, enquadramento e cantos arredondados
-- **Textos:** escrever direto na página, com 12 fontes, tamanho, cor, negrito, itálico, alinhamento e sombra
+- **Textos:** caixa de texto desenhada na página, com 12 fontes, tamanho, cor, negrito, itálico, alinhamento e sombra
 - **Formas e camadas:** retângulo, círculo, linha, transparência e ordem dos elementos
-- **Páginas:** criar, duplicar, reordenar, excluir, cor de fundo e 8 modelos prontos
+- **Páginas:** criar, duplicar, reordenar, excluir, cor de fundo e modelos prontos opcionais
 - **Página dupla:** um elemento pode atravessar a dobra do livro
-- **Atalhos:** `Ctrl+Z`, `Ctrl+Y`, `Ctrl+D`, `Delete`, setas e `Alt` para arrastar sem o ímã de alinhamento
+- **Celular:** uma página por vez, ferramentas embaixo, ajustes em gaveta e pinça com dois dedos para aumentar e girar
+- **Atalhos no computador:** `Ctrl+Z`, `Ctrl+Y`, `Ctrl+D`, `Delete`, setas e `Alt` para arrastar sem o ímã de alinhamento
 
 O editor salva sozinho em `fotolivro_rascunho`. O site só muda ao clicar em **Publicar**, que copia o rascunho para `fotolivro`. Salvar a landing não apaga o livro. O formato das páginas (`fotolivro/render.js`) e o álbum inicial (`fotolivro/padrao.js`) vêm da landing publicada, então **publique a landing antes do painel**.
 
