@@ -185,7 +185,7 @@ FONTES_LIVRO = {"Syne", "Inter", "Playfair Display", "Cormorant Garamond", "Mont
 LAYOUTS_LIVRO = {"foto", "foto_texto", "duas_fotos", "texto", "livre"}
 # opções de formato: [valor aceito, ...], o primeiro é o padrão
 OPCOES_LIVRO = {
-    "formato": ("retrato", "a4", "quadrado", "paisagem"),
+    "formato": ("retrato", "a4", "r34", "r23", "quadrado", "paisagem", "p32", "a4_deitado", "panoramico", "personalizado"),
     "tamanho": ("grande", "medio", "pequeno"),
     "capa_tipo": ("dura", "flexivel"),
     "capa_modelo": ("fundo", "moldura", "texto"),
@@ -267,6 +267,8 @@ def limpar_livro(d):
         livro[c] = d.get(c) if d.get(c) in FONTES_LIVRO else "Inter"
     for c, opcoes in OPCOES_LIVRO.items():
         livro[c] = d.get(c) if d.get(c) in opcoes else opcoes[0]
+    livro["medida_largura"] = numero(d.get("medida_largura"), 5, 100, 21)  # em cm, usado no formato "personalizado"
+    livro["medida_altura"] = numero(d.get("medida_altura"), 5, 100, 29.7)
     paginas = d.get("paginas") if isinstance(d.get("paginas"), list) else []
     livro["paginas"] = [limpar_pagina(p) for p in paginas[:MAX_PAGINAS] if isinstance(p, dict)]
     return livro

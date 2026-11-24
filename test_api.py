@@ -70,3 +70,9 @@ itens[7] = {"id": 7, "site": "agencia", "tipo": "portfolio"}
 assert c.put("/api/itens/agencia/7", json={"ordem": -6}, headers=h).status_code == 400
 assert c.put("/api/itens/agencia/7", json={"ordem": 0}, headers=h).status_code == 200
 print("OK: ordem")
+
+# formato personalizado: medida em cm entre 5 e 100
+r = c.put("/api/fotolivro", json={"formato": "personalizado", "medida_largura": 25, "medida_altura": "999", "paginas": []}, headers=h).json
+assert (r["formato"], r["medida_largura"], r["medida_altura"]) == ("personalizado", 25, 100), r
+assert c.put("/api/fotolivro", json={"formato": "panoramico"}, headers=h).json["formato"] == "panoramico"
+print("OK: formato personalizado")

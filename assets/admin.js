@@ -193,7 +193,7 @@ async function trocarSite(novo) {
   if (site === 'fotolivro' && !Object.keys(config).length) config = structuredClone(LIVRO_PADRAO);
   if (site === 'fotolivro' && window.LivroRender) {
     config.paginas = (config.paginas || []).map(LivroRender.converter);
-    LivroRender.definirFormato(config.formato);
+    LivroRender.definirFormato(config.formato, config.medida_largura, config.medida_altura);
   }
   $('#publicar').classList.toggle('hidden', site !== 'fotolivro');
   $('#publicar').classList.toggle('flex', site === 'fotolivro');
@@ -499,23 +499,50 @@ const OPCOES_LIVRO = {
 };
 
 function grupoOpcoes(rotulo, opcoes, atual, aoMudar) {
-  const botoes = opcoes.map(([valor, nome, extra]) => h('button', { type: 'button', role: 'radio', 'aria-checked': String(valor === atual),
+  const botoes = opcoes.map(([valor, nome, extra, detalhe]) => h('button', { type: 'button', role: 'radio', 'aria-checked': String(valor === atual),
     class: 'px-4 py-2.5 rounded-xl border text-sm font-semibold transition flex flex-col items-center gap-2 border-mist/15 hover:bg-white/5 aria-checked:bg-royal/40 aria-checked:border-periwinkle',
-    onclick: e => { botoes.forEach(b => b.setAttribute('aria-checked', String(b === e.currentTarget))); aoMudar(valor); } }, extra, nome));
+    onclick: e => { botoes.forEach(b => b.setAttribute('aria-checked', String(b === e.currentTarget))); aoMudar(valor); } },
+    extra, h('span', { class: 'flex flex-col items-center' }, nome, detalhe && h('span', { class: 'text-[11px] font-normal text-mist/50' }, detalhe))));
   return h('div', {}, h('p', { class: 'text-sm text-mist/80 mb-2' }, rotulo), h('div', { role: 'radiogroup', 'aria-label': rotulo, class: 'flex flex-wrap gap-2' }, botoes));
 }
 
 function telaLivroFormato() {
-  const amostra = prop => h('span', { class: 'block bg-ice/80 rounded-sm shadow', style: `height:44px;width:${Math.round(44 * prop)}px` });
-  const formatos = Object.entries(LivroRender.FORMATOS).map(([valor, [nome, prop]]) => [valor, nome, amostra(prop)]);
+  // a amostra cabe numa caixa de 44px: o lado maior encosta na borda
+  const amostra = prop => h('span', { class: 'block bg-ice/80 rounded-sm shadow', style: `height:${Math.round(44 / Math.max(1, prop))}px;width:${Math.round(44 * Math.min(1, prop))}px` });
+  const formatos = Object.entries(LivroRender.FORMATOS).map(([valor, [nome, prop, medida]]) => [valor, nome, h('span', { class: 'h-11 grid place-items-center' }, amostra(prop)), medida]);
+  formatos.push(['personalizado', 'Personalizado', h('span', { class: 'h-11 grid place-items-center' }, icone('ruler', 'w-7 h-7 text-mist/70')), 'você digita a medida']);
   const aviso = h('p', { class: 'text-xs text-amber-200/80 hidden' }, 'As páginas já montadas são ajustadas ao novo formato (fotos e textos acompanham, em %). Confira no editor antes de publicar.');
+  const aplicar = () => { LivroRender.definirFormato(config.formato, config.medida_largura, config.medida_altura); aviso.classList.remove('hidden'); marcarAlterado(); };
+
+  // medida própria: largura × altura em cm (só a proporção muda o livro; o tamanho na tela vem da opção abaixo)
+  config.medida_largura ??= 21; config.medida_altura ??= 29.7;
+  const previa = h('span', { class: 'block bg-ice/80 rounded-sm shadow transition-all' });
+  const texto = h('p', { class: 'text-xs text-mist/50' });
+  const desenharPrevia = () => {
+    const prop = LivroRender.definirFormato('personalizado', config.medida_largura, config.medida_altura);
+    Object.assign(previa.style, { width: `${Math.round(64 * Math.min(1, prop))}px`, height: `${Math.round(64 / Math.max(1, prop))}px` });
+    const limitada = Math.abs(prop - config.medida_largura / config.medida_altura) > .001;
+    texto.textContent = limitada ? 'Medida muito comprida: o livro fica no limite de 2,5 para 1.' : 'Folha de ' + `${config.medida_largura} × ${config.medida_altura} cm`.replaceAll('.', ',');
+  };
+  const medida = (chave, rotulo) => h('label', { class: 'text-sm' }, h('span', { class: 'block mb-1 text-mist/80' }, rotulo),
+    h('input', { class: 'campo !w-32', type: 'number', min: 5, max: 100, step: 0.1, value: config[chave], 'aria-label': rotulo,
+      oninput: e => { const v = +e.target.value; if (v >= 5 && v <= 100) { config[chave] = v; desenharPrevia(); aplicar(); } } }));
+  const personalizado = h('div', { class: 'flex flex-wrap items-end gap-4 p-4 rounded-xl bg-black/30 border border-mist/10' },
+    medida('medida_largura', 'Largura (cm)'), h('span', { class: 'pb-3 text-mist/50' }, '×'), medida('medida_altura', 'Altura (cm)'),
+    h('span', { class: 'h-16 w-16 grid place-items-center' }, previa), texto);
+  const mostrarPersonalizado = () => {
+    personalizado.classList.toggle('hidden', config.formato !== 'personalizado');
+    if (config.formato === 'personalizado') desenharPrevia();
+    LivroRender.definirFormato(config.formato, config.medida_largura, config.medida_altura);
+  };
+
   const caixa = h('section', { class: 'card p-6 mt-6 space-y-6' },
     h('div', {}, h('h3', { class: 'font-display font-bold text-lg' }, 'Formato e capa'),
       h('p', { class: 'text-sm text-mist/60 mt-1' }, 'Como as folhas, a capa e a contracapa aparecem no site.')),
-    grupoOpcoes('Formato das folhas', formatos, config.formato || 'retrato', v => {
-      config.formato = v; LivroRender.definirFormato(v); aviso.classList.remove('hidden'); marcarAlterado();
-    }),
+    grupoOpcoes('Formato das folhas', formatos, config.formato || 'retrato', v => { config.formato = v; mostrarPersonalizado(); aplicar(); }),
+    personalizado,
     aviso);
+  mostrarPersonalizado();
   for (const [chave, [rotulo, opcoes]] of Object.entries(OPCOES_LIVRO))
     caixa.append(grupoOpcoes(rotulo, opcoes, config[chave] || opcoes[0][0], v => { config[chave] = v; marcarAlterado(); }));
   return caixa;
