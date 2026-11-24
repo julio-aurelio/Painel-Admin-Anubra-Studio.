@@ -2,8 +2,8 @@
 const API = '/api';
 
 // Endereços dos sites depois do deploy na Vercel (troque pelos seus)
-const URL_LANDING = 'https://anubra-landing.vercel.app';
-const URL_AGENCIA = 'https://anubra-agencia.vercel.app';
+const URL_LANDING = 'https://anubra-studio.vercel.app';
+const URL_AGENCIA = 'https://anubra-studio-agencia.vercel.app';
 
 // ---------- O que dá pra editar em cada site ----------
 // [chave, rótulo, tipo]  tipo: texto (padrão) | area | imagem | numero | icone
