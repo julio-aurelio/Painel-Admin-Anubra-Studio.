@@ -151,16 +151,20 @@ def salvar_config(site):
     dados = {k[:60]: texto(v) for k, v in d.items() if k != "cores" and isinstance(v, (str, int, float))}
     cores = d.get("cores") or {}
     dados["cores"] = {c: cores[c] for c in CORES if HEX.match(str(cores.get(c, "")))}
-    if site == "landing":  # o foto livro mora nesta linha e tem a própria tela
-        atuais = ler_dados_landing()
-        dados.update({c: atuais[c] for c in CHAVES_LIVRO if atuais.get(c)})
+    # o foto livro (landing) e as galerias do mural (agência) moram nesta linha e têm as próprias telas
+    atuais = ler_dados(site)
+    dados.update({c: atuais[c] for c in CHAVES_PROPRIAS[site] if atuais.get(c)})
     gravar_config(site, dados)
     return jsonify(dados)
 
 
-def ler_dados_landing():
-    linhas = supabase("GET", "/rest/v1/site_config?site=eq.landing&select=dados")
+def ler_dados(site):
+    linhas = supabase("GET", f"/rest/v1/site_config?site=eq.{site}&select=dados")
     return linhas[0]["dados"] if linhas else {}
+
+
+def ler_dados_landing():
+    return ler_dados("landing")
 
 
 def gravar_config(site, dados):
@@ -171,6 +175,7 @@ def gravar_config(site, dados):
 
 # ---------- Foto livro (em site_config da landing: "fotolivro" é o publicado, "fotolivro_rascunho" o editado) ----------
 CHAVES_LIVRO = ("fotolivro", "fotolivro_rascunho")
+CHAVES_PROPRIAS = {"landing": CHAVES_LIVRO, "agencia": ("galerias",)}
 TEXTOS_LIVRO = ("titulo", "subtitulo", "autor", "ano", "dedicatoria", "contracapa_titulo", "contracapa_texto",
                 "botao_texto", "dica", "titulo_aba")
 IMAGENS_LIVRO = ("capa_imagem", "contracapa_imagem")
@@ -287,8 +292,14 @@ def publicar_fotolivro():
 
 
 # ---------- Itens (produtos, serviços, equipe, portfólio, depoimentos) ----------
+POSICAO = re.compile(r"#pos=\d{1,3},\d{1,3}$")
+
+
 def validar_item(d, site):
     item = {c: texto(d.get(c)) for c in CAMPOS_ITEM if c in d}
+    url, marca, _ = item.get("imagem_url", "").partition("#")
+    if marca and not POSICAO.search(item["imagem_url"]):
+        item["imagem_url"] = url  # a posição escolhida vai no fim do link; qualquer outra coisa depois do # sai
     if "ordem" in d:
         try:
             item["ordem"] = int(d["ordem"])
@@ -337,7 +348,34 @@ def editar_item(site, item_id):
 @exige_site
 def apagar_item(site, item_id):
     supabase("DELETE", f"/rest/v1/itens?id=eq.{item_id}&site=eq.{site}")
+    if site == "agencia":
+        dados = ler_dados("agencia")
+        if (dados.get("galerias") or {}).pop(str(item_id), None) is not None:
+            gravar_config("agencia", dados)
     return jsonify(ok=True)
+
+
+# ---------- Galeria do mural (portfólio da agência, em site_config: "galerias" = {id do item: [links]}) ----------
+MAX_FOTOS_GALERIA = 120
+
+
+@app.put("/api/galeria/<int:item_id>")
+@exige_login
+def salvar_galeria(item_id):
+    d = request.get_json(silent=True) or {}
+    fotos = d.get("fotos") if isinstance(d.get("fotos"), list) else []
+    fotos = [u for u in (url_imagem(f) for f in fotos[:MAX_FOTOS_GALERIA]) if u]
+    if not supabase("GET", f"/rest/v1/itens?id=eq.{item_id}&site=eq.agencia&tipo=eq.portfolio&select=id"):
+        return jsonify(erro="Projeto do portfólio não encontrado"), 404
+    dados = ler_dados("agencia")  # shortcut: última gravação vence; basta para uma pessoa editando por vez
+    galerias = dados.get("galerias") if isinstance(dados.get("galerias"), dict) else {}
+    if fotos:
+        galerias[str(item_id)] = fotos
+    else:
+        galerias.pop(str(item_id), None)
+    dados["galerias"] = galerias
+    gravar_config("agencia", dados)
+    return jsonify(fotos=fotos)
 
 
 # ---------- Upload de imagens (Supabase Storage) ----------

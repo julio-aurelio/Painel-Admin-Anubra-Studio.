@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/logo.png" width="100" /></p>
+<p align="center"><img src="assets/logo.webp" width="100" /></p>
 
 <h1 align="center">Painel Admin — Anubra Studio</h1>
 

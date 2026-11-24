@@ -19,6 +19,8 @@ const SITES = {
         ['stat1_numero', 'Número 1', 'numero'], ['stat1_texto', 'Legenda 1'], ['stat2_numero', 'Número 2', 'numero'], ['stat2_texto', 'Legenda 2'],
         ['stat3_numero', 'Número 3', 'numero'], ['stat3_texto', 'Legenda 3'], ['sobre_imagem', 'Imagem', 'imagem']],
       'Seção de produtos': [['produtos_titulo', 'Título'], ['produtos_texto', 'Texto']],
+      'Seção do Foto Livro': [['livro_titulo', 'Título'], ['livro_preco', 'Preço (opcional, ex.: A partir de R$ 300)'], ['livro_texto', 'Texto', 'area'],
+        ['livro_item1', 'Destaque 1'], ['livro_item2', 'Destaque 2'], ['livro_item3', 'Destaque 3'], ['livro_imagem', 'Foto da capa do livro', 'imagem']],
       'Contato': [['contato_titulo', 'Título'], ['contato_texto', 'Texto'], ['whatsapp', 'WhatsApp'], ['telefone', 'Telefone'], ['instagram', 'Instagram'], ['email', 'E-mail']],
       'Créditos da agência': [['agencia_nome', 'Nome da agência'], ['agencia_contato', 'Contato da agência'], ['agencia_link', 'Link do site da agência']],
     },
@@ -70,10 +72,10 @@ const FONTES_LIVRO = window.LivroRender?.FONTES || ['Syne', 'Inter', 'Playfair D
 
 // Campos de cada tipo de item
 const CAMPOS_ITEM = {
-  produto: [['titulo', 'Nome do ensaio'], ['descricao', 'Descrição', 'area'], ['preco', 'Preço (ex.: A partir de R$ 250)'], ['imagem_url', 'Foto', 'imagem'], ['ordem', 'Ordem', 'numero']],
+  produto: [['titulo', 'Nome do ensaio'], ['descricao', 'Descrição', 'area'], ['preco', 'Preço (ex.: A partir de R$ 250)'], ['imagem_url', 'Foto', 'imagem_pos', '3/2'], ['ordem', 'Ordem', 'numero']],
   servico: [['titulo', 'Nome do serviço'], ['descricao', 'Descrição', 'area'], ['icone', 'Ícone', 'icone'], ['ordem', 'Ordem', 'numero']],
-  membro: [['titulo', 'Nome'], ['subtitulo', 'Função'], ['imagem_url', 'Foto', 'imagem'], ['ordem', 'Ordem', 'numero']],
-  portfolio: [['titulo', 'Nome do projeto'], ['subtitulo', 'Categoria'], ['link', 'Link (opcional)'], ['imagem_url', 'Imagem', 'imagem'], ['ordem', 'Ordem', 'numero']],
+  membro: [['titulo', 'Nome'], ['subtitulo', 'Função'], ['imagem_url', 'Foto', 'imagem_pos', '4/5'], ['ordem', 'Ordem', 'numero']],
+  portfolio: [['titulo', 'Nome do projeto'], ['subtitulo', 'Categoria'], ['link', 'Link (opcional)'], ['imagem_url', 'Imagem da capa', 'imagem_pos', '3/2'], ['ordem', 'Ordem', 'numero']],
   depoimento: [['titulo', 'Nome do cliente'], ['subtitulo', 'Serviço contratado'], ['descricao', 'Depoimento', 'area'], ['ordem', 'Ordem', 'numero']],
 };
 const ICONES = ['camera', 'aperture', 'image', 'images', 'party-popper', 'shopping-bag', 'sparkles', 'heart', 'users', 'user-round', 'baby', 'gem', 'sun', 'video', 'film', 'star', 'wand-sparkles', 'palette'];
@@ -234,18 +236,19 @@ function abrir(id) {
 $('#abrir-menu').addEventListener('click', () => $('#sidebar').classList.toggle('-translate-x-full'));
 window.addEventListener('beforeunload', e => { if (alterado) e.preventDefault(); });
 
-// ---------- Upload: foto de câmera é reduzida no navegador para caber no limite da API ----------
+// ---------- Upload: toda foto vira WEBP no navegador (bem mais leve e cabe no limite da API); GIF e SVG sobem como estão ----------
 async function comprimirImagem(f) {
-  if (!/^image\/(jpeg|png|webp)$/.test(f.type) || f.size <= 1.5 * 1024 * 1024) return f;
+  if (!/^image\/(jpeg|png|webp)$/.test(f.type)) return f;
   const bmp = await createImageBitmap(f);
   const k = Math.min(1, 2400 / Math.max(bmp.width, bmp.height));
   const tela = document.createElement('canvas');
   tela.width = Math.round(bmp.width * k); tela.height = Math.round(bmp.height * k);
   tela.getContext('2d').drawImage(bmp, 0, 0, tela.width, tela.height);
   bmp.close();
-  const tipo = f.type === 'image/jpeg' ? 'image/jpeg' : 'image/webp';  // webp mantém a transparência do PNG
-  const blob = await new Promise(ok => tela.toBlob(ok, tipo, .86));
-  return blob && blob.size < f.size ? new File([blob], f.name, { type: blob.type }) : f;
+  const blob = await new Promise(ok => tela.toBlob(ok, 'image/webp', .85));
+  if (!blob || blob.type !== 'image/webp') return f;  // navegador antigo que não gera WEBP: sobe o original
+  if (f.type === 'image/webp' && blob.size >= f.size) return f;
+  return new File([blob], f.name.replace(/\.\w+$/, '') + '.webp', { type: 'image/webp' });
 }
 
 async function enviarImagem(f) {
@@ -285,13 +288,57 @@ function campoIcone(valor, aoMudar) {
   return grade;
 }
 
-function campo([chave, rotulo, tipo], valor, aoMudar) {
+// ---------- Posição da imagem: fica no fim do link ("...webp#pos=50,30") e os sites usam como object-position ----------
+const separarPos = v => { const [url, pos] = String(v || '').split('#pos='); return [url, /^\d{1,3},\d{1,3}$/.test(pos || '') ? pos : '50,50']; };
+const posCss = v => separarPos(v)[1].replace(',', '% ') + '%';
+
+function seletorPosicao(url, pos, proporcao, aoMudar) {
+  let [x, y] = pos.split(',').map(Number);
+  const ponto = h('span', { class: 'absolute w-6 h-6 -ml-3 -mt-3 rounded-full border-2 border-white bg-royal/60 shadow-lg pointer-events-none ring-4 ring-black/30' });
+  const previa = h('img', { src: url, alt: '', class: 'w-full h-full object-cover' });
+  const area = h('div', { class: 'relative inline-block max-w-full cursor-crosshair touch-none rounded-lg overflow-hidden outline-none focus-visible:ring-2 ring-periwinkle', tabindex: 0,
+    role: 'slider', 'aria-label': 'Posição da imagem (use as setas)' },
+    h('img', { src: url, alt: '', draggable: 'false', class: 'block max-h-60 max-w-full select-none' }), ponto);
+  const aplicar = (nx, ny) => {
+    x = Math.round(Math.min(100, Math.max(0, nx))); y = Math.round(Math.min(100, Math.max(0, ny)));
+    ponto.style.left = `${x}%`; ponto.style.top = `${y}%`;
+    previa.style.objectPosition = `${x}% ${y}%`;
+    area.setAttribute('aria-valuetext', `${x}% na horizontal, ${y}% na vertical`);
+  };
+  const mover = e => { const r = area.getBoundingClientRect(); aplicar((e.clientX - r.left) / r.width * 100, (e.clientY - r.top) / r.height * 100); };
+  area.addEventListener('pointerdown', e => { area.setPointerCapture(e.pointerId); mover(e); });
+  area.addEventListener('pointermove', e => { if (area.hasPointerCapture(e.pointerId)) mover(e); });
+  area.addEventListener('pointerup', () => aoMudar(`${x},${y}`));
+  area.addEventListener('keydown', e => {
+    const passo = { ArrowLeft: [-5, 0], ArrowRight: [5, 0], ArrowUp: [0, -5], ArrowDown: [0, 5] }[e.key];
+    if (!passo) return;
+    e.preventDefault(); aplicar(x + passo[0], y + passo[1]); aoMudar(`${x},${y}`);
+  });
+  aplicar(x, y);
+  const centralizar = h('button', { type: 'button', class: 'text-xs text-periwinkle hover:underline mt-2', onclick: () => { aplicar(50, 50); aoMudar('50,50'); } }, 'Centralizar');
+  return h('div', { class: 'grid sm:grid-cols-2 gap-4 items-start mt-4 p-4 rounded-xl bg-black/30 border border-mist/10' },
+    h('div', {}, h('p', { class: 'text-xs text-mist/60 mb-2' }, 'Clique ou arraste no ponto da foto que deve aparecer'), area, h('div', {}, centralizar)),
+    h('div', {}, h('p', { class: 'text-xs text-mist/60 mb-2' }, 'Como vai ficar no site'), h('div', { class: 'rounded-xl overflow-hidden bg-black', style: `aspect-ratio:${proporcao}` }, previa)));
+}
+
+function campoImagemPos(valor, aoMudar, proporcao = '3/2') {
+  let [url, pos] = separarPos(valor);
+  const salvar = () => aoMudar(!url ? '' : pos === '50,50' ? url : `${url}#pos=${pos}`);
+  const seletor = h('div');
+  const desenhar = () => seletor.replaceChildren(url ? seletorPosicao(url, pos, proporcao, p => { pos = p; salvar(); }) : '');
+  const el = h('div', {}, campoImagem(url, v => { url = v.split('#pos=')[0]; pos = '50,50'; salvar(); desenhar(); }), seletor);
+  desenhar();
+  return el;
+}
+
+function campo([chave, rotulo, tipo, extra], valor, aoMudar) {
   let entrada;
   if (tipo === 'imagem') entrada = campoImagem(valor, aoMudar);
+  else if (tipo === 'imagem_pos') entrada = campoImagemPos(valor, aoMudar, extra);
   else if (tipo === 'icone') entrada = campoIcone(valor, aoMudar);
   else if (tipo === 'area') entrada = h('textarea', { class: 'campo', rows: 4, oninput: e => aoMudar(e.target.value) }, valor || '');
   else entrada = h('input', { class: 'campo', type: tipo === 'numero' ? 'number' : 'text', value: valor ?? '', oninput: e => aoMudar(e.target.value) });
-  const largo = ['area', 'imagem', 'icone'].includes(tipo);
+  const largo = ['area', 'imagem', 'imagem_pos', 'icone'].includes(tipo);
   return h(largo ? 'div' : 'label', { class: `block text-sm font-medium ${largo ? 'sm:col-span-2' : ''}` },
     h('span', { class: 'block mb-2 text-mist/80' }, rotulo), entrada);
 }
@@ -388,18 +435,54 @@ async function telaLista(c, tipo) {
   grade.replaceChildren();
   if (!itens.length) grade.append(h('div', { class: 'card p-10 text-center sm:col-span-2 lg:col-span-3 text-mist/50' }, icone('inbox', 'w-8 h-8 mx-auto mb-3'), `Nenhum item em ${nome}.`));
   for (const item of itens) {
-    const midia = item.imagem_url ? h('img', { src: item.imagem_url, class: 'w-full h-40 object-cover', alt: '' })
+    const midia = item.imagem_url ? h('img', { src: separarPos(item.imagem_url)[0], class: 'w-full h-40 object-cover', style: `object-position:${posCss(item.imagem_url)}`, alt: '' })
       : h('div', { class: 'h-40 grid place-items-center bg-gradient-to-br from-navy to-royal' }, icone(item.icone || (tipo === 'depoimento' ? 'quote' : 'image'), 'w-9 h-9 text-mist/60'));
     grade.append(h('article', { class: 'card overflow-hidden flex flex-col' }, midia,
       h('div', { class: 'p-5 flex-1 flex flex-col' },
         h('p', { class: 'font-display font-bold' }, item.titulo),
         h('p', { class: 'text-sm text-mist/60 mt-1 line-clamp-2 flex-1' }, item.subtitulo || item.descricao || item.preco || ''),
         h('div', { class: 'flex items-center gap-2 mt-4' },
-          h('span', { class: 'text-xs text-mist/40 flex-1' }, `Ordem ${item.ordem}`),
+          h('span', { class: 'text-xs text-mist/40 flex-1' }, `Ordem ${item.ordem}`, config.galerias?.[item.id]?.length ? ` · ${config.galerias[item.id].length} fotos no mural` : ''),
           h('button', { class: 'h-9 w-9 grid place-items-center rounded-full hover:bg-white/10', title: 'Editar', 'aria-label': 'Editar', onclick: () => editarItem(tipo, item) }, icone('pencil')),
           h('button', { class: 'h-9 w-9 grid place-items-center rounded-full hover:bg-red-500/20 text-red-300', title: 'Excluir', 'aria-label': 'Excluir', onclick: () => apagarItem(item) }, icone('trash-2'))))));
   }
   desenharIcones();
+}
+
+// ---------- Galeria do mural (portfólio da agência): opcional ----------
+function campoGaleria(fotos) {
+  const grade = h('div', { class: 'grid grid-cols-3 sm:grid-cols-4 gap-2' });
+  const arquivo = h('input', { type: 'file', accept: 'image/*', multiple: true, class: 'hidden' });
+  const rotulo = h('span', {}, 'Adicionar fotos');
+  const botaoIcone = (ic, rot, desativado, fn, cls = '') => h('button', { type: 'button', 'aria-label': rot, title: rot, disabled: desativado,
+    class: `h-7 w-7 grid place-items-center rounded-full bg-black/60 hover:bg-white/20 disabled:opacity-30 ${cls}`, onclick: fn }, icone(ic, 'w-3.5 h-3.5'));
+  const trocar = (a, b) => { [fotos[a], fotos[b]] = [fotos[b], fotos[a]]; desenhar(); };
+  const desenhar = () => {
+    grade.replaceChildren(...fotos.map((u, i) => h('div', { class: 'relative aspect-square rounded-lg overflow-hidden bg-black/40' },
+      h('img', { src: u, alt: `Foto ${i + 1}`, loading: 'lazy', class: 'w-full h-full object-cover' }),
+      h('span', { class: 'absolute top-1 left-1 text-[10px] font-bold bg-black/60 rounded px-1.5 py-0.5' }, i + 1),
+      h('div', { class: 'absolute inset-x-0 bottom-0 flex justify-between p-1 bg-gradient-to-t from-black/80 to-transparent' },
+        botaoIcone('chevron-left', 'Mover para antes', i === 0, () => trocar(i, i - 1)),
+        botaoIcone('trash-2', 'Remover foto', false, () => { fotos.splice(i, 1); desenhar(); }, 'text-red-300'),
+        botaoIcone('chevron-right', 'Mover para depois', i === fotos.length - 1, () => trocar(i, i + 1))))));
+    if (!fotos.length) grade.append(h('p', { class: 'col-span-full text-xs text-mist/40 py-4 text-center border border-dashed border-mist/15 rounded-lg' }, 'Nenhuma foto na galeria'));
+    desenharIcones();
+  };
+  const botao = h('button', { type: 'button', class: 'px-4 py-2 rounded-full border border-mist/20 hover:bg-white/5 text-sm font-semibold flex items-center gap-2', onclick: () => arquivo.click() }, icone('images'), rotulo);
+  arquivo.addEventListener('change', async () => {
+    const lista = [...arquivo.files]; if (!lista.length) return;
+    botao.disabled = true;
+    let ok = 0;
+    for (const [i, f] of lista.entries()) {  // uma por vez: a Vercel limita o tamanho de cada envio
+      rotulo.textContent = `Enviando ${i + 1}/${lista.length}...`;
+      try { fotos.push(await enviarImagem(f)); ok++; desenhar(); }
+      catch (err) { aviso(`${f.name}: ${err.message}`, 'erro'); }
+    }
+    if (ok) aviso(`${ok} ${ok === 1 ? 'foto enviada' : 'fotos enviadas'}. Clique em "Salvar item" para guardar.`);
+    botao.disabled = false; rotulo.textContent = 'Adicionar fotos'; arquivo.value = '';
+  });
+  desenhar();
+  return h('div', { class: 'space-y-3' }, grade, botao, arquivo);
 }
 
 function editarItem(tipo, item) {
@@ -407,12 +490,18 @@ function editarItem(tipo, item) {
   $('#modal-titulo').textContent = `${item ? 'Editar' : 'Novo'} — ${SITES[site].listas[tipo]}`;
   const box = $('#modal-campos'); box.replaceChildren();
   for (const def of CAMPOS_ITEM[tipo]) box.append(campo(def, dados[def[0]], v => dados[def[0]] = v));
+  const fotos = tipo === 'portfolio' ? [...(config.galerias?.[item?.id] || [])] : null;
+  if (fotos) box.append(h('div', { class: 'text-sm font-medium' },
+    h('span', { class: 'block mb-1 text-mist/80' }, 'Galeria do mural (opcional)'),
+    h('p', { class: 'text-xs text-mist/50 mb-3' }, 'Com fotos aqui, clicar no projeto abre um mural com todas elas. Sem fotos, o card continua como antes.'),
+    campoGaleria(fotos)));
   $('#form-item').onsubmit = async e => {
     e.preventDefault();
     if (!String(dados.titulo || '').trim()) return aviso('Preencha o nome/título', 'erro');
     try {
-      if (item) await api(`/itens/${site}/${item.id}`, { method: 'PUT', body: dados });
-      else await api(`/itens/${site}`, { method: 'POST', body: dados });
+      const salvo = item ? await api(`/itens/${site}/${item.id}`, { method: 'PUT', body: dados })
+        : await api(`/itens/${site}`, { method: 'POST', body: dados });
+      if (fotos) config.galerias = { ...config.galerias, [salvo.id]: (await api(`/galeria/${salvo.id}`, { method: 'PUT', body: { fotos } })).fotos };
       $('#modal').close(); aviso('Item salvo!'); abrir(aba);
     } catch (err) { aviso(err.message, 'erro'); }
   };
