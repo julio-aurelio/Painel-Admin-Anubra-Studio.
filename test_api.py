@@ -64,3 +64,9 @@ assert (r.json["formato"], r.json["tamanho"], r.json["capa_tipo"], r.json["capa_
 assert c.put("/api/fotolivro", json={}, headers=h).json["formato"] == "retrato"
 print("OK: opções do foto livro")
 print("OK: todos os testes passaram")
+
+# ordem negativa é recusada
+itens[7] = {"id": 7, "site": "agencia", "tipo": "portfolio"}
+assert c.put("/api/itens/agencia/7", json={"ordem": -6}, headers=h).status_code == 400
+assert c.put("/api/itens/agencia/7", json={"ordem": 0}, headers=h).status_code == 200
+print("OK: ordem")

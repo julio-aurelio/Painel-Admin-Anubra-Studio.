@@ -316,6 +316,8 @@ def validar_item(d, site):
             item["ordem"] = int(d["ordem"])
         except (TypeError, ValueError):
             return None, "Ordem precisa ser um número"
+        if item["ordem"] < 0:
+            return None, "A ordem não pode ser negativa"
     if "tipo" in d:
         if d["tipo"] not in TIPOS[site]:
             return None, "Tipo inválido para este site"

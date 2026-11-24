@@ -340,7 +340,8 @@ function campo([chave, rotulo, tipo, extra], valor, aoMudar) {
   else if (tipo === 'imagem_pos') entrada = campoImagemPos(valor, aoMudar, extra);
   else if (tipo === 'icone') entrada = campoIcone(valor, aoMudar);
   else if (tipo === 'area') entrada = h('textarea', { class: 'campo', rows: 4, oninput: e => aoMudar(e.target.value) }, valor || '');
-  else entrada = h('input', { class: 'campo', type: tipo === 'numero' ? 'number' : 'text', value: valor ?? '', oninput: e => aoMudar(e.target.value) });
+  else if (tipo === 'numero') entrada = h('input', { class: 'campo', type: 'number', min: 0, step: 1, value: valor ?? '', oninput: e => aoMudar(e.target.value) });
+  else entrada = h('input', { class: 'campo', type: 'text', value: valor ?? '', oninput: e => aoMudar(e.target.value) });
   const largo = ['area', 'imagem', 'imagem_pos', 'icone'].includes(tipo);
   return h(largo ? 'div' : 'label', { class: `block text-sm font-medium ${largo ? 'sm:col-span-2' : ''}` },
     h('span', { class: 'block mb-2 text-mist/80' }, rotulo), entrada);
@@ -527,7 +528,7 @@ async function telaLista(c, tipo) {
   c.append(
     h('div', { class: 'flex items-center justify-between gap-4 mb-6' },
       h('p', { class: 'text-sm text-mist/60' }, 'Os itens aparecem no site na ordem do campo "Ordem".'),
-      h('button', { class: 'shrink-0 px-5 py-2.5 rounded-full bg-royal hover:bg-periwinkle font-semibold text-sm flex items-center gap-2', onclick: () => editarItem(tipo, null) }, icone('plus'), 'Adicionar')),
+      h('button', { class: 'shrink-0 px-5 py-2.5 rounded-full bg-royal hover:bg-periwinkle font-semibold text-sm flex items-center gap-2', onclick: () => editarItem(tipo, null, Math.max(0, ...(itens || []).map(i => +i.ordem || 0)) + ((itens || []).length ? 1 : 0)) }, icone('plus'), 'Adicionar')),
     grade);
   desenharIcones();
   let itens;
@@ -586,8 +587,8 @@ function campoGaleria(fotos) {
   return h('div', { class: 'space-y-3' }, grade, botao, arquivo);
 }
 
-function editarItem(tipo, item) {
-  const dados = item ? { ...item } : { tipo, ordem: 0 };
+function editarItem(tipo, item, proximaOrdem = 0) {
+  const dados = item ? { ...item } : { tipo, ordem: proximaOrdem };
   $('#modal-titulo').textContent = `${item ? 'Editar' : 'Novo'} — ${SITES[site].listas[tipo]}`;
   const box = $('#modal-campos'); box.replaceChildren();
   for (const def of CAMPOS_ITEM[tipo]) box.append(campo(def, dados[def[0]], v => dados[def[0]] = v));
