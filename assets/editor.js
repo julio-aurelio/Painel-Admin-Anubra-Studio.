@@ -60,7 +60,8 @@ async function salvarRascunho() {
   ed.salvando = (async () => {
     try {
       await api('/fotolivro', { method: 'PUT', body: config });
-      if (versao === ed.versao) { alterado = false; marcarStatus('Rascunho salvo'); }
+      if (versao === ed.versao) { alterado = false; marcarStatus('Rascunho salvo, falta publicar'); }
+      marcarPendente(true);
       return true;
     } catch (err) { marcarStatus('Erro ao salvar'); aviso(err.message, 'erro'); return false; }
   })();
@@ -73,7 +74,7 @@ async function publicarLivro() {
   if (!carregou) return aviso('O conteúdo não carregou. Recarregue a página antes de publicar.', 'erro');
   while (ed.salvando) await ed.salvando;
   if (!await salvarRascunho()) return;
-  try { await api('/fotolivro/publicar', { method: 'POST' }); marcarStatus('Publicado'); aviso('Livro publicado no site!'); }
+  try { await api('/fotolivro/publicar', { method: 'POST' }); marcarStatus('Publicado'); marcarPendente(false); aviso('Livro publicado no site! Pode levar até 1 minuto para aparecer.'); }
   catch (err) { aviso(err.message, 'erro'); }
 }
 $('#publicar').addEventListener('click', publicarLivro);

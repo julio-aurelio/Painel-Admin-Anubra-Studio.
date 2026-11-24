@@ -195,6 +195,7 @@ async function trocarSite(novo) {
     config.paginas = (config.paginas || []).map(LivroRender.converter);
     LivroRender.definirFormato(config.formato, config.medida_largura, config.medida_altura);
   }
+  marcarPendente(site === 'fotolivro' ? undefined : false);
   $('#publicar').classList.toggle('hidden', site !== 'fotolivro');
   $('#publicar').classList.toggle('flex', site === 'fotolivro');
   config.cores = { ...coresPadrao(), ...(config.cores || {}) };
@@ -464,10 +465,28 @@ $('#salvar').addEventListener('click', async () => {
     config = await api(rotaConfig(), { method: 'PUT', body: config });
     config.cores = { ...coresPadrao(), ...config.cores };
     alterado = false; btn.classList.remove('animate-pulse');
-    aviso(site === 'fotolivro' ? 'Rascunho salvo. Clique em Publicar para ir ao site.' : 'Alterações salvas! Atualize o site para ver.');
+    if (site !== 'fotolivro') aviso('Alterações salvas! Atualize o site para ver.');
+    else {
+      marcarPendente(true);
+      // "Salvar" do livro só guarda o rascunho: sem publicar, o site continua com a versão antiga
+      btn.disabled = false;
+      if (await confirmar('Rascunho salvo. O site só muda depois de publicar. Publicar agora?', 'Publicar', false)) publicarLivro();
+    }
   } catch (err) { aviso(err.message, 'erro'); }
   btn.disabled = false;
 });
+
+// Destaca o Publicar enquanto o site mostra uma versão antiga do livro (sem valor: pergunta para a API)
+async function marcarPendente(pendente) {
+  if (pendente === undefined) {
+    try { pendente = (await api('/fotolivro/status')).pendente; } catch { return; }
+  }
+  const mostrar = pendente && site === 'fotolivro';
+  $('#aviso-publicar').classList.toggle('hidden', !mostrar);
+  $('#aviso-publicar').classList.toggle('flex', mostrar);
+  $('#publicar').classList.toggle('ring-4', mostrar);
+  $('#publicar').classList.toggle('ring-amber-300/50', mostrar);
+}
 
 // ---------- Telas do foto livro ----------
 function telaLivroAparencia(c) {

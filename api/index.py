@@ -293,6 +293,15 @@ def salvar_fotolivro():
     return jsonify(dados["fotolivro_rascunho"])
 
 
+@app.get("/api/fotolivro/status")
+@exige_login
+def status_fotolivro():
+    # o painel avisa quando o rascunho tem mudanças que ainda não foram para o site
+    dados = ler_dados_landing()
+    rascunho = dados.get("fotolivro_rascunho")
+    return jsonify(pendente=bool(rascunho) and rascunho != dados.get("fotolivro"))
+
+
 @app.post("/api/fotolivro/publicar")
 @exige_login
 def publicar_fotolivro():

@@ -76,3 +76,11 @@ r = c.put("/api/fotolivro", json={"formato": "personalizado", "medida_largura": 
 assert (r["formato"], r["medida_largura"], r["medida_altura"]) == ("personalizado", 25, 100), r
 assert c.put("/api/fotolivro", json={"formato": "panoramico"}, headers=h).json["formato"] == "panoramico"
 print("OK: formato personalizado")
+
+# status do foto livro: pendente enquanto o rascunho é diferente do publicado
+banco["landing"] = {"fotolivro_rascunho": {"titulo": "B"}, "fotolivro": {"titulo": "A"}}
+assert c.get("/api/fotolivro/status", headers=h).json == {"pendente": True}
+c.post("/api/fotolivro/publicar", headers=h)
+assert c.get("/api/fotolivro/status", headers=h).json == {"pendente": False}
+assert c.get("/api/fotolivro/status").status_code == 401
+print("OK: status de publicação")
