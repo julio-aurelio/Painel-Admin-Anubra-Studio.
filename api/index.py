@@ -183,6 +183,15 @@ CORES_LIVRO = ("fundo", "capa", "capa_texto", "pagina", "texto", "destaque")
 FONTES_LIVRO = {"Syne", "Inter", "Playfair Display", "Cormorant Garamond", "Montserrat", "Dancing Script",
                 "Abril Fatface", "Bebas Neue", "Caveat", "Lora", "Oswald", "Raleway"}
 LAYOUTS_LIVRO = {"foto", "foto_texto", "duas_fotos", "texto", "livre"}
+# opções de formato: [valor aceito, ...], o primeiro é o padrão
+OPCOES_LIVRO = {
+    "formato": ("retrato", "a4", "quadrado", "paisagem"),
+    "tamanho": ("grande", "medio", "pequeno"),
+    "capa_tipo": ("dura", "flexivel"),
+    "capa_modelo": ("fundo", "moldura", "texto"),
+    "contracapa_modelo": ("fundo", "moldura", "texto"),
+    "capa_alinhar": ("esquerda", "centro"),
+}
 MAX_PAGINAS = 200
 MAX_ELEMENTOS = 80
 
@@ -256,6 +265,8 @@ def limpar_livro(d):
     livro["cores"] = {c: cores[c] for c in CORES_LIVRO if HEX.fullmatch(str(cores.get(c, "")))}
     for c in ("fonte_titulo", "fonte_texto"):
         livro[c] = d.get(c) if d.get(c) in FONTES_LIVRO else "Inter"
+    for c, opcoes in OPCOES_LIVRO.items():
+        livro[c] = d.get(c) if d.get(c) in opcoes else opcoes[0]
     paginas = d.get("paginas") if isinstance(d.get("paginas"), list) else []
     livro["paginas"] = [limpar_pagina(p) for p in paginas[:MAX_PAGINAS] if isinstance(p, dict)]
     return livro

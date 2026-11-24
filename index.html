@@ -26,6 +26,13 @@
     input[type=color] { -webkit-appearance: none; border: none; padding: 0; cursor: pointer; }
     input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
     input[type=color]::-webkit-color-swatch { border: none; border-radius: .75rem; }
+    /* barra de rolagem com as cores da marca */
+    ::-webkit-scrollbar { width: 12px; height: 12px; }
+    ::-webkit-scrollbar-track { background: #05070f; }
+    ::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 99px; background: linear-gradient(#7C93F1, #10288C) padding-box; }
+    ::-webkit-scrollbar-thumb:hover { border-width: 2px; background: linear-gradient(#B5C4FF, #7C93F1) padding-box; }
+    ::-webkit-scrollbar-corner { background: transparent; }
+    @supports not selector(::-webkit-scrollbar) { html, * { scrollbar-color: #7C93F1 transparent; scrollbar-width: thin; } }
   </style>
 </head>
 <body class="bg-black text-ice font-sans min-h-screen">

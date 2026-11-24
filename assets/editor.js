@@ -274,9 +274,10 @@ function desenharTudo() {
 }
 
 function miniatura(i) {
-  if (i === null) return h('div', { class: 'bg-white/5', style: 'width:72px;height:99px' });
+  const tam = `width:72px;height:${Math.round(72 / LivroRender.PROPORCAO)}px`;  // segue o formato das folhas
+  if (i === null) return h('div', { class: 'bg-white/5', style: tam });
   const p = config.paginas[i];
-  const c = h('div', { class: 'relative overflow-hidden', 'data-mini': i, style: `width:72px;height:99px;container-type:size;background:${p.fundo || config.cores.pagina}` });
+  const c = h('div', { class: 'relative overflow-hidden', 'data-mini': i, style: `${tam};container-type:size;background:${p.fundo || config.cores.pagina}` });
   LivroRender.montar(c, config.paginas, i);
   return c;
 }

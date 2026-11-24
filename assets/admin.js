@@ -191,7 +191,10 @@ async function trocarSite(novo) {
   try { config = await api(rotaConfig()); carregou = true; }
   catch (err) { config = {}; aviso(err.message, 'erro'); }
   if (site === 'fotolivro' && !Object.keys(config).length) config = structuredClone(LIVRO_PADRAO);
-  if (site === 'fotolivro' && window.LivroRender) config.paginas = (config.paginas || []).map(LivroRender.converter);
+  if (site === 'fotolivro' && window.LivroRender) {
+    config.paginas = (config.paginas || []).map(LivroRender.converter);
+    LivroRender.definirFormato(config.formato);
+  }
   $('#publicar').classList.toggle('hidden', site !== 'fotolivro');
   $('#publicar').classList.toggle('flex', site === 'fotolivro');
   config.cores = { ...coresPadrao(), ...(config.cores || {}) };
@@ -240,7 +243,7 @@ window.addEventListener('beforeunload', e => { if (alterado) e.preventDefault();
 async function comprimirImagem(f) {
   if (!/^image\/(jpeg|png|webp)$/.test(f.type)) return f;
   const bmp = await createImageBitmap(f);
-  const k = Math.min(1, 2400 / Math.max(bmp.width, bmp.height));
+  const k = Math.min(1, 1920 / Math.max(bmp.width, bmp.height));
   const tela = document.createElement('canvas');
   tela.width = Math.round(bmp.width * k); tela.height = Math.round(bmp.height * k);
   tela.getContext('2d').drawImage(bmp, 0, 0, tela.width, tela.height);
@@ -374,8 +377,74 @@ function telaAparencia(c) {
     onclick: () => { config.cores = { ...CORES_PADRAO }; marcarAlterado(); abrir('aparencia'); } }, icone('rotate-ccw'), 'Restaurar paleta original'));
   const logo = h('div', { class: 'card p-6 lg:col-span-2' }, h('p', { class: 'text-xs uppercase tracking-widest text-mist/50 mb-4' }, 'Logo'),
     campoImagem(config.logo, v => { config.logo = v; marcarAlterado(); }));
-  c.append(h('div', { class: 'grid lg:grid-cols-2 gap-6' }, cores, amostra, logo));
+  c.append(h('div', { class: 'grid lg:grid-cols-2 gap-6' }, cores, amostra, logo, cartaoOtimizar()));
   desenharAmostra();
+}
+
+// ---------- Otimizar fotos antigas: as enviadas antes do WEBP chegavam a 5000px e travavam o site ----------
+const precisaOtimizar = url => /^https?:\/\/[^#]+\/storage\/v1\/object\/public\//.test(url || '') && !/\.(webp|gif|svg)(#|$)/i.test(url);
+
+async function otimizarUrl(url) {
+  const [limpa, pos] = url.split('#');
+  const r = await fetch(limpa);
+  if (!r.ok) throw new Error('não foi possível baixar');
+  const blob = await r.blob();
+  const f = await comprimirImagem(new File([blob], 'foto', { type: blob.type }));
+  if (f.type !== 'image/webp') throw new Error('este navegador não gera WEBP; use o Chrome ou o Edge');
+  const fd = new FormData();
+  fd.append('arquivo', f);
+  const novo = (await api('/upload', { method: 'POST', body: fd })).url;
+  return pos ? `${novo}#${pos}` : novo;
+}
+
+function cartaoOtimizar() {
+  const status = h('p', { class: 'text-sm text-mist/60', 'aria-live': 'polite' });
+  const rotulo = h('span', {}, 'Otimizar fotos agora');
+  const botao = h('button', { class: 'px-5 py-2.5 rounded-full bg-royal hover:bg-periwinkle disabled:opacity-50 font-semibold text-sm flex items-center gap-2', onclick: () => otimizarFotos(botao, rotulo, status) }, icone('zap'), rotulo);
+  return h('div', { class: 'card p-6 lg:col-span-2 space-y-3' },
+    h('p', { class: 'text-xs uppercase tracking-widest text-mist/50' }, 'Deixar o site mais leve'),
+    h('p', { class: 'text-sm text-mist/80' }, 'Converte as fotos antigas (JPG/PNG grandes) deste site para WEBP com no máximo 1920px. As fotos ficam iguais na tela, mas o site carrega muito mais rápido. Pode levar alguns minutos; não feche a página.'),
+    h('div', { class: 'flex flex-wrap items-center gap-4' }, botao, status));
+}
+
+async function otimizarFotos(botao, rotulo, status) {
+  if (alterado) return aviso('Salve as alterações antes de otimizar as fotos.', 'erro');
+  if (!carregou) return aviso('O conteúdo não carregou. Recarregue a página.', 'erro');
+  botao.disabled = true;
+  try {
+    status.textContent = 'Procurando fotos...';
+    const itens = await api(`/itens/${site}`);
+    const chaves = ['logo', ...Object.values(SITES[site].textos).flat().filter(d => d[2] === 'imagem').map(d => d[0])];
+    const galerias = config.galerias || {};
+    const todas = [...itens.map(i => i.imagem_url), ...chaves.map(k => config[k]), ...Object.values(galerias).flat()];
+    const fila = [...new Set(todas.filter(precisaOtimizar))];
+    if (!fila.length) { status.textContent = 'Tudo certo: as fotos já estão leves.'; return; }
+    const novas = new Map();
+    let feitas = 0, falhas = 0, proxima = 0;
+    const trabalhar = async () => {  // duas por vez: rápido sem pesar a memória do computador
+      while (proxima < fila.length) {
+        const url = fila[proxima++];
+        try { novas.set(url, await otimizarUrl(url)); } catch { falhas++; }
+        rotulo.textContent = `Otimizando ${++feitas}/${fila.length}...`;
+      }
+    };
+    await Promise.all([trabalhar(), trabalhar()]);
+    status.textContent = 'Salvando...';
+    const troca = u => novas.get(u) || u;
+    for (const it of itens)
+      if (novas.has(it.imagem_url)) await api(`/itens/${site}/${it.id}`, { method: 'PUT', body: { imagem_url: troca(it.imagem_url) } });
+    if (chaves.some(k => novas.has(config[k]))) {
+      for (const k of chaves) if (config[k]) config[k] = troca(config[k]);
+      const salvo = await api(rotaConfig(), { method: 'PUT', body: config });
+      config = { ...config, ...salvo, cores: { ...coresPadrao(), ...salvo.cores } };
+    }
+    for (const [id, fotos] of Object.entries(galerias))
+      if (fotos.some(u => novas.has(u))) galerias[id] = (await api(`/galeria/${id}`, { method: 'PUT', body: { fotos: fotos.map(troca) } })).fotos;
+    if (site === 'agencia') config.galerias = galerias;  // o PUT da config acima trocou o objeto
+    status.textContent = `${novas.size} ${novas.size === 1 ? 'foto otimizada' : 'fotos otimizadas'}${falhas ? `, ${falhas} não deu (tente de novo)` : ''}. Atualize o site para ver.`;
+    aviso('Fotos otimizadas!');
+  } catch (err) { aviso(err.message, 'erro'); status.textContent = ''; }
+  finally { botao.disabled = false; rotulo.textContent = 'Otimizar fotos agora'; }
 }
 
 // ---------- Tela: Textos ----------
@@ -416,7 +485,39 @@ function telaLivroAparencia(c) {
     fontes.append(h('label', { class: 'block text-sm font-medium' }, h('span', { class: 'block mb-2 text-mist/80' }, nome),
       h('select', { class: 'campo', onchange: e => { config[chave] = e.target.value; marcarAlterado(); } },
         FONTES_LIVRO.map(f => h('option', { value: f, selected: config[chave] === f }, f)))));
-  c.append(h('div', { class: 'grid lg:grid-cols-2 gap-6' }, cores, fontes));
+  c.append(h('div', { class: 'grid lg:grid-cols-2 gap-6' }, cores, fontes), telaLivroFormato());
+}
+
+// ---------- Formato das folhas, tamanho e capa/contracapa ----------
+const OPCOES_LIVRO = {
+  tamanho: ['Tamanho do livro na tela', [['grande', 'Grande'], ['medio', 'Médio'], ['pequeno', 'Pequeno']]],
+  capa_tipo: ['Tipo de capa', [['dura', 'Capa dura'], ['flexivel', 'Capa flexível']]],
+  capa_modelo: ['Modelo da capa', [['fundo', 'Foto de fundo'], ['moldura', 'Foto com moldura'], ['texto', 'Só texto']]],
+  contracapa_modelo: ['Modelo da contracapa', [['fundo', 'Foto de fundo'], ['moldura', 'Foto com moldura'], ['texto', 'Só texto']]],
+  capa_alinhar: ['Texto da capa e contracapa', [['esquerda', 'À esquerda'], ['centro', 'Centralizado']]],
+};
+
+function grupoOpcoes(rotulo, opcoes, atual, aoMudar) {
+  const botoes = opcoes.map(([valor, nome, extra]) => h('button', { type: 'button', role: 'radio', 'aria-checked': String(valor === atual),
+    class: 'px-4 py-2.5 rounded-xl border text-sm font-semibold transition flex flex-col items-center gap-2 border-mist/15 hover:bg-white/5 aria-checked:bg-royal/40 aria-checked:border-periwinkle',
+    onclick: e => { botoes.forEach(b => b.setAttribute('aria-checked', String(b === e.currentTarget))); aoMudar(valor); } }, extra, nome));
+  return h('div', {}, h('p', { class: 'text-sm text-mist/80 mb-2' }, rotulo), h('div', { role: 'radiogroup', 'aria-label': rotulo, class: 'flex flex-wrap gap-2' }, botoes));
+}
+
+function telaLivroFormato() {
+  const amostra = prop => h('span', { class: 'block bg-ice/80 rounded-sm shadow', style: `height:44px;width:${Math.round(44 * prop)}px` });
+  const formatos = Object.entries(LivroRender.FORMATOS).map(([valor, [nome, prop]]) => [valor, nome, amostra(prop)]);
+  const aviso = h('p', { class: 'text-xs text-amber-200/80 hidden' }, 'As páginas já montadas são ajustadas ao novo formato (fotos e textos acompanham, em %). Confira no editor antes de publicar.');
+  const caixa = h('section', { class: 'card p-6 mt-6 space-y-6' },
+    h('div', {}, h('h3', { class: 'font-display font-bold text-lg' }, 'Formato e capa'),
+      h('p', { class: 'text-sm text-mist/60 mt-1' }, 'Como as folhas, a capa e a contracapa aparecem no site.')),
+    grupoOpcoes('Formato das folhas', formatos, config.formato || 'retrato', v => {
+      config.formato = v; LivroRender.definirFormato(v); aviso.classList.remove('hidden'); marcarAlterado();
+    }),
+    aviso);
+  for (const [chave, [rotulo, opcoes]] of Object.entries(OPCOES_LIVRO))
+    caixa.append(grupoOpcoes(rotulo, opcoes, config[chave] || opcoes[0][0], v => { config[chave] = v; marcarAlterado(); }));
+  return caixa;
 }
 
 // ---------- Tela: Listas (produtos, serviços, equipe...) ----------

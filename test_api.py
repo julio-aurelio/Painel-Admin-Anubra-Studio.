@@ -54,4 +54,13 @@ c.put("/api/galeria/7", json={"fotos": ["https://x.co/2.webp"]}, headers=h)
 c.delete("/api/itens/agencia/7", headers=h)
 assert "7" not in banco["agencia"]["galerias"]
 
+
+# opções de formato do foto livro: valor válido fica, inválido volta ao padrão
+banco["landing"] = {}
+r = c.put("/api/fotolivro", json={"formato": "quadrado", "tamanho": "pequeno", "capa_tipo": "flexivel", "capa_modelo": "moldura",
+                                  "contracapa_modelo": "<b>", "capa_alinhar": "centro", "paginas": []}, headers=h)
+assert (r.json["formato"], r.json["tamanho"], r.json["capa_tipo"], r.json["capa_modelo"], r.json["contracapa_modelo"], r.json["capa_alinhar"]) == \
+    ("quadrado", "pequeno", "flexivel", "moldura", "fundo", "centro"), r.json
+assert c.put("/api/fotolivro", json={}, headers=h).json["formato"] == "retrato"
+print("OK: opções do foto livro")
 print("OK: todos os testes passaram")
